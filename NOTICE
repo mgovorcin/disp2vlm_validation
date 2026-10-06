@@ -1,0 +1,42 @@
+disp2vlm_validation
+Copyright (c) 2026 California Institute of Technology ("Caltech").
+U.S. Government sponsorship acknowledged.
+
+This software was developed at the Jet Propulsion Laboratory (JPL),
+California Institute of Technology, under a contract with the National
+Aeronautics and Space Administration (NASA), as part of the Observational
+Products for End-users from Remote-sensing Analysis (OPERA) project.
+
+Source: https://github.com/mgovorcin/disp2vlm_validation
+
+This software is released as open-source software under the Apache License,
+Version 2.0. See the LICENSE file or http://www.apache.org/licenses/LICENSE-2.0.
+
+Attribution
+-----------
+Under Section 4 of the License, anyone who redistributes this software or a
+Derivative Work of it, in source or object form, must keep the copyright,
+patent, trademark, and attribution notices from the source, and must include
+a readable copy of the attribution notices in this NOTICE file. These
+conditions apply to every such copy or Derivative Work, however it was
+produced, including with the help of software tools or AI systems.
+
+Third-party components
+----------------------
+This software may include or depend on third-party components that carry
+their own licenses and notices. Those terms govern those components. See
+THIRD_PARTY_NOTICES.md and LICENSES/, where present.
+
+Names and marks
+---------------
+The License does not grant permission to use the names, logos, or insignia of
+NASA, JPL, Caltech, or OPERA, except for reasonable and customary use in
+describing the origin of this software. Use of the NASA name and insignia is
+governed by 14 CFR Part 1221.
+
+AI systems and provenance
+-------------------------
+See AI_PROVENANCE.md for the project's position on use of this software by AI
+systems and on preserving provenance in AI-generated or AI-assisted code.
+That document, like the contents of this NOTICE file, is informational and
+does not modify the License.

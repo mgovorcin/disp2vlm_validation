@@ -1,0 +1,18 @@
+site_name: disp2vlm_validation
+repo_url: https://github.com/mgovorcin/disp2vlm_validation
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Scope: scope.md
+  - API: api.md
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+markdown_extensions:
+  - tables
+  - admonition
+  - pymdownx.superfences

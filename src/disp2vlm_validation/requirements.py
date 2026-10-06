@@ -1,0 +1,104 @@
+# Copyright (c) 2026 California Institute of Technology ("Caltech").
+# U.S. Government sponsorship acknowledged.
+# SPDX-License-Identifier: Apache-2.0
+"""The CalVal release gate as data (Venti PRD section 2.7).
+
+One place for the numbers a run is judged by, so the gate logic (plan T23),
+the reports (T24) and the traceability table all read the same values. A
+change here changes what passes; it needs a decision record.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+__all__ = ["BENCHMARK_FRAMES", "GATE", "GateThresholds"]
+
+
+@dataclass(frozen=True)
+class GateThresholds:
+    """Release-gate thresholds; a run FAILS if any condition is violated.
+
+    Attributes
+    ----------
+    sill_must_drop : bool
+        The calibrated double-difference sill must be below the raw one.
+    sill_rise_max_frac : float
+        Candidate vs baseline: a sill rise above this fraction that is also
+        statistically significant fails.
+    sill_min_pair_km : float
+        Station pairs shorter than this are not used for the sill.
+    velocity_rmse_rise_max_mm_yr, velocity_bias_rise_max_mm_yr : float
+        Candidate vs baseline: velocity RMSE or |bias| vs MIDAS may not rise
+        by more than this.
+    target_abs_bias_mm_yr : float
+        Release target per frame (reported, not a pass/fail condition).
+    bootstrap_ci : float
+        Confidence level of the station-bootstrap intervals.
+
+    """
+
+    sill_must_drop: bool = True
+    sill_rise_max_frac: float = 0.05
+    sill_min_pair_km: float = 50.0
+    velocity_rmse_rise_max_mm_yr: float = 0.2
+    velocity_bias_rise_max_mm_yr: float = 0.2
+    target_abs_bias_mm_yr: float = 1.0
+    bootstrap_ci: float = 0.95
+    independent_gnss_only: bool = field(default=True, init=False)
+
+
+GATE = GateThresholds()
+
+# PRD section 2.7: the 8-frame CalVal v0.5 benchmark. Frames 5-8 are TBD
+# (plan T40); the condition is the category-specific check on top of the gate.
+BENCHMARK_FRAMES: dict[int, dict[str, str]] = {
+    1: {
+        "frame": "F08882",
+        "name": "Houston",
+        "category": "coastal subsidence + islands",
+        "condition": "subsiding stations: bias < 1, RMSE < 2 mm/yr",
+    },
+    2: {
+        "frame": "F08886",
+        "name": "Oklahoma City",
+        "category": "stable inland",
+        "condition": "stable stations: |bias| < 1 mm/yr",
+    },
+    3: {
+        "frame": "F16940",
+        "name": "Los Angeles",
+        "category": "high relief + islands",
+        "condition": "sill drops; tropo mode does not make it worse",
+    },
+    4: {
+        "frame": "F08622",
+        "name": "New York",
+        "category": "northeast / GIA",
+        "condition": "vertical pattern vs GNSS",
+    },
+    5: {
+        "frame": "TBD",
+        "name": "Central Valley",
+        "category": "fast basin (defo area)",
+        "condition": "continuous surface; stations outside unaffected; bowl kept",
+    },
+    6: {
+        "frame": "TBD",
+        "name": "Ridgecrest 2019",
+        "category": "coseismic event",
+        "condition": "no step leaks into CAL",
+    },
+    7: {
+        "frame": "TBD",
+        "name": "Great Basin or Montana",
+        "category": "sparse GNSS",
+        "condition": "realistic sigma; no artifacts",
+    },
+    8: {
+        "frame": "TBD",
+        "name": "Hawaii (PA) / Puerto Rico (CA)",
+        "category": "non-NA plate",
+        "condition": "correct plate layer; Kilauea as a defo area",
+    },
+}

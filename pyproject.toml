@@ -1,0 +1,142 @@
+[build-system]
+requires = ["setuptools>=77", "setuptools_scm[toml]>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "disp2vlm-validation"
+description = "Independent GNSS validation of OPERA DISP-CAL and VLM products (CalVal VnV)"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "OPERA ADT" }]
+dynamic = ["version"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: GIS",
+]
+# Never part of the operational image: this package judges the products, it
+# does not make them. geepers[analysis] brings MIDAS, the UNR station
+# retrieval and the xarray/rasterio stack.
+dependencies = [
+  "numpy",
+  "pandas",
+  "scipy",
+  "xarray",
+  "rioxarray",
+  "h5netcdf",
+  "pyproj",
+  "pyyaml",
+  "jinja2",
+  "matplotlib",
+  "tyro>=0.9.24",
+  "geepers[analysis] @ git+https://github.com/mgovorcin/geepers.git@677f95ddd863f9edd5f6bc5a0adca98e4297d857",
+]
+
+[project.optional-dependencies]
+# Only to reproduce a calibration inside a validation run (candidate vs
+# baseline); the metrics never import it.
+venti = ["venti @ git+https://github.com/mgovorcin/venti-dev.git@feature/golden-benchmark"]
+test = ["pytest", "pytest-cov", "pytest-randomly"]
+
+[project.scripts]
+disp2vlm-validate = "disp2vlm_validation.cli:main"
+
+[project.urls]
+Repository = "https://github.com/mgovorcin/disp2vlm_validation"
+
+[tool.setuptools_scm]
+version_file = "src/disp2vlm_validation/_version.py"
+fallback_version = "0.0.0"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 88
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "D", "PL", "RUF", "EXE"]
+ignore = ["D100", "D104", "D105", "D107", "PLR0913", "PLR2004", "PLC0415"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D", "PLR"]
+
+[tool.black]
+target-version = ["py311", "py312", "py313"]
+preview = true
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# pixi (00_tools/standards/pixi-tasks.toml)
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64"]
+
+[tool.pixi.dependencies]
+python = ">=3.11,<3.14"
+numpy = "*"
+pandas = "*"
+scipy = "*"
+xarray = "*"
+rioxarray = "*"
+h5netcdf = "*"
+pyproj = ">=3.3"
+pyyaml = "*"
+jinja2 = "*"
+matplotlib-base = "*"
+geopandas-base = "*"
+pyogrio = "*"
+rasterio = "*"
+dask = "*"
+zarr = "*"
+pandera = "*"
+lxml = "*"
+shapely = ">=2"
+requests = "*"
+tqdm = "*"
+tyro = ">=0.9.24"
+sqlite = ">=3.45"
+
+[tool.pixi.pypi-dependencies]
+disp2vlm-validation = { path = ".", editable = true }
+
+[tool.pixi.tasks]
+test = "pytest"
+lint = "pre-commit run -a"
+docs = "mkdocs build --strict"
+golden = "echo 'no golden dataset in this repo'"
+e2e = "echo 'e2e validation is what this repo runs: disp2vlm-validate --help'"
+clean = "rm -rf build/ dist/ *.egg-info/ .pytest_cache/ .coverage .ruff_cache/ .mypy_cache/ && find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true"
+
+[tool.pixi.feature.dev.dependencies]
+pre-commit = "*"
+pytest = "*"
+pytest-cov = "*"
+pytest-randomly = "*"
+pytest-xdist = "*"
+ruff = "*"
+black = "*"
+mypy = "*"
+nbstripout = "*"
+mkdocs = "*"
+mkdocs-material = "*"
+pymdown-extensions = "*"
+
+[tool.pixi.feature.dev.pypi-dependencies]
+mkdocstrings = { version = "*", extras = ["python"] }
+
+[tool.pixi.environments]
+dev = ["dev"]

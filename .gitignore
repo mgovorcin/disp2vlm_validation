@@ -1,0 +1,15 @@
+__pycache__/
+*.egg-info/
+build/
+dist/
+.pixi/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+site/
+src/disp2vlm_validation/_version.py
+# validation runs write here; reports are archived elsewhere
+runs/
+# generic skills are linked per checkout by 00_tools/skills/install.sh
+.claude/

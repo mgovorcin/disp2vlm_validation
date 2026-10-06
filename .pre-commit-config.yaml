@@ -1,0 +1,71 @@
+# Shared pre-commit configuration (00_tools/standards). Repo-specific additions
+# go below the kit section; keep the kit hooks so pre-commit.ci behaves the same
+# in every repo.
+ci:
+  autofix_prs: false
+  autoupdate_schedule: monthly
+
+exclude: '(^src/.*/_version\.py$)'
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: "v6.0.0"
+    hooks:
+      - id: check-case-conflict
+      - id: check-docstring-first
+        exclude: '\.ipynb$'
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+        # mkdocs.yml uses the !!python/name: tag for pymdownx superfences
+        exclude: '^mkdocs\.yml$'
+      - id: debug-statements
+        exclude: '\.ipynb$'
+      - id: end-of-file-fixer
+        exclude: '\.ipynb$'
+      - id: mixed-line-ending
+        exclude: '\.ipynb$'
+      - id: trailing-whitespace
+        exclude: '\.ipynb$'
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.8
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix, --show-fixes]
+        types_or: [python, jupyter]
+
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: "26.5.1"
+    hooks:
+      - id: black
+        args: [--preview, --enable-unstable-feature, string_processing]
+        exclude: '\.ipynb$'
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: "v2.3.1"
+    hooks:
+      - id: mypy
+        exclude: '(\.ipynb$|^tests/|^scripts/)'
+        additional_dependencies:
+          - types-requests
+          - types-PyYAML
+          - "pydantic>=2.4"
+
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.1
+    hooks:
+      - id: nbstripout
+        # Notebook outputs are the rendered documentation (mkdocs-jupyter runs
+        # with execute: false), so keep them; strip only metadata and counts.
+        args: [--keep-output]
+
+  - repo: local
+    hooks:
+      - id: spdx-header
+        name: SPDX license header
+        entry: python scripts/spdx_check.py --license Apache-2.0
+        language: python
+        types: [python]
+        exclude: '(^src/.*/_version\.py$|^docs/|^notebooks/)'
