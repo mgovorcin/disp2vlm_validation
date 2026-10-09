@@ -24,13 +24,13 @@ datum-free). Calibration must lower it. 95% intervals: station bootstrap, paired
 <table><tr><th>variant</th><th>n</th><th>bias</th><th>median</th><th>RMSE</th><th>std</th><th>NMAD</th><th>r²</th></tr>
 {% for name, s in m.velocity_los.items() %}<tr><td>{{ name }}</td><td>{{ s.n }}</td><td>{{ sg(s.bias, 2) }}</td><td>{{ sg(s.median, 2) }}</td>
 <td>{{ f(s.rmse, 2) }}</td><td>{{ f(s.std, 2) }}</td><td>{{ f(s.nmad, 2) }}</td><td>{{ f(s.r2, 3) }}</td></tr>{% endfor %}</table>
-<p class="muted">mm/yr. Raw is referenced to one pixel, so its bias depends on that pixel; compare its std, NMAD and r².</p>
+<p class="muted">mm/yr. "bias" is the mean residual, "median" the median one; the gate and the release target use the {{ 'median' if m.deltas.bias_statistic != 'mean' else 'mean' }} (decision 0001). Raw is referenced to one pixel, so its bias depends on that pixel; compare its std, NMAD and r².</p>
 <figure><img src="figures/velocity_scatter.svg" alt="InSAR against GNSS velocity at the stations"></figure>
 <details><summary>Station data</summary>{{ st_table }}</details>
 
 <h2>By station class (calibrated)</h2>
-<table><tr><th>class</th><th>n</th><th>bias</th><th>RMSE</th><th>corr</th></tr>
-{% for r in m.velocity_by_class %}{% if r.n %}<tr><td>{{ r['class'] }}</td><td>{{ r.n }}</td><td>{{ sg(r.bias, 2) }}</td><td>{{ f(r.rmse, 2) }}</td><td>{{ f(r.corr, 2) }}</td></tr>{% endif %}{% endfor %}</table>
+<table><tr><th>class</th><th>n</th><th>bias</th><th>median</th><th>RMSE</th><th>corr</th></tr>
+{% for r in m.velocity_by_class %}{% if r.n %}<tr><td>{{ r['class'] }}</td><td>{{ r.n }}</td><td>{{ sg(r.bias, 2) }}</td><td>{{ sg(r.median, 2) }}</td><td>{{ f(r.rmse, 2) }}</td><td>{{ f(r.corr, 2) }}</td></tr>{% endif %}{% endfor %}</table>
 <figure><img src="figures/class_rmse.svg" alt="Calibrated velocity RMSE per station class"></figure>
 
 <h2>Requirements traceability</h2>

@@ -10,6 +10,8 @@ A run FAILS when any of these holds:
    rise is significant (the paired bootstrap CI of the change is above 0);
 3. versus the baseline, the velocity RMSE or |bias| (vs MIDAS) rises more
    than `velocity_rmse_rise_max_mm_yr` / `velocity_bias_rise_max_mm_yr`;
+   the bias is the median of the station residuals unless `bias_statistic`
+   says ``mean`` (decision 0001);
 4. the golden-epoch check fails.
 
 The thresholds come from `gate.yaml` (per release); the defaults are
@@ -23,7 +25,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -57,6 +59,7 @@ class GateConfig(BaseModel):
     sill_rise_max_pct: float = 100.0 * GATE.sill_rise_max_frac
     velocity_rmse_rise_max_mm_yr: float = GATE.velocity_rmse_rise_max_mm_yr
     velocity_bias_rise_max_mm_yr: float = GATE.velocity_bias_rise_max_mm_yr
+    bias_statistic: Literal["median", "mean"] = GATE.bias_statistic  # type: ignore[assignment]
     target_abs_bias_mm_yr: float = GATE.target_abs_bias_mm_yr
     significance_ci: float = GATE.bootstrap_ci
     per_class_targets: dict[str, ClassTarget] = Field(default_factory=dict)
@@ -75,8 +78,8 @@ def load_gate(path: Path | str | None) -> GateConfig:
 class GateInputs:
     """What the gate needs from a validation run.
 
-    Velocities are the LOS statistics vs MIDAS (``bias``, ``rmse`` in
-    mm/yr); sills in mm^2. ``sill_change_vs_baseline_ci`` is the paired
+    Velocities are the LOS statistics vs MIDAS (``bias`` = mean, ``median``,
+    ``rmse`` in mm/yr); sills in mm^2. ``sill_change_vs_baseline_ci`` is the paired
     bootstrap 95% CI of the candidate's sill change vs the baseline, in %.
     """
 
@@ -105,9 +108,19 @@ class GateResult:
         return "PASS" if self.passed else "FAIL"
 
 
+def _bias(stats: dict[str, Any], statistic: str) -> float:
+    """Return the bias the gate uses: ``median`` or the mean (``bias``)."""
+    key = "median" if statistic == "median" else "bias"
+    if key not in stats:
+        msg = f"bias_statistic={statistic!r} needs {key!r} in the velocity stats"
+        raise KeyError(msg)
+    return float(stats[key])
+
+
 def evaluate(inputs: GateInputs, gate: GateConfig | None = None) -> GateResult:
     """Apply the gate (see the module docstring)."""
     g = gate or GateConfig()
+    label = "median bias" if g.bias_statistic == "median" else "bias"
     reasons: list[str] = []
     notes: list[str] = []
     deltas: dict[str, Any] = {}
@@ -136,7 +149,7 @@ def evaluate(inputs: GateInputs, gate: GateConfig | None = None) -> GateResult:
     if inputs.velocity_baseline is not None:
         cur, ref = inputs.velocity_candidate, inputs.velocity_baseline
         d_rmse = cur["rmse"] - ref["rmse"]
-        d_bias = abs(cur["bias"]) - abs(ref["bias"])
+        d_bias = abs(_bias(cur, g.bias_statistic)) - abs(_bias(ref, g.bias_statistic))
         deltas["velocity_rmse_change_mm_yr"] = d_rmse
         deltas["velocity_abs_bias_change_mm_yr"] = d_bias
         if d_rmse > g.velocity_rmse_rise_max_mm_yr:
@@ -146,16 +159,18 @@ def evaluate(inputs: GateInputs, gate: GateConfig | None = None) -> GateResult:
             )
         if d_bias > g.velocity_bias_rise_max_mm_yr:
             reasons.append(
-                f"velocity |bias| up {d_bias:+.2f} mm/yr vs baseline (limit"
+                f"velocity |{label}| up {d_bias:+.2f} mm/yr vs baseline (limit"
                 f" {g.velocity_bias_rise_max_mm_yr:g})"
             )
     if inputs.golden_epoch_ok is False:
         reasons.append("golden-epoch check failed")
 
-    bias = inputs.velocity_candidate.get("bias")
+    deltas["bias_statistic"] = g.bias_statistic
+    key = "median" if g.bias_statistic == "median" else "bias"
+    bias = inputs.velocity_candidate.get(key)
     if bias is not None and abs(bias) > g.target_abs_bias_mm_yr:
         notes.append(
-            f"|bias| {abs(bias):.2f} mm/yr above the release target"
+            f"|{label}| {abs(bias):.2f} mm/yr above the release target"
             f" {g.target_abs_bias_mm_yr:g} mm/yr (reported, not gating)"
         )
     for cls, target in g.per_class_targets.items():
@@ -164,11 +179,11 @@ def evaluate(inputs: GateInputs, gate: GateConfig | None = None) -> GateResult:
             continue
         if (
             target.max_abs_bias_mm_yr is not None
-            and abs(m["bias"]) > target.max_abs_bias_mm_yr
+            and abs(_bias(m, g.bias_statistic)) > target.max_abs_bias_mm_yr
         ):
             notes.append(
-                f"{cls}: |bias| {abs(m['bias']):.2f} > {target.max_abs_bias_mm_yr:g}"
-                " mm/yr"
+                f"{cls}: |{label}| {abs(_bias(m, g.bias_statistic)):.2f} >"
+                f" {target.max_abs_bias_mm_yr:g} mm/yr"
             )
         if target.max_rmse_mm_yr is not None and m["rmse"] > target.max_rmse_mm_yr:
             notes.append(

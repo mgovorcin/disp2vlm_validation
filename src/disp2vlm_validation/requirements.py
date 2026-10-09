@@ -31,8 +31,14 @@ class GateThresholds:
     velocity_rmse_rise_max_mm_yr, velocity_bias_rise_max_mm_yr : float
         Candidate vs baseline: velocity RMSE or |bias| vs MIDAS may not rise
         by more than this.
+    bias_statistic : str
+        Which bias the bias rules use: ``"median"`` of the station residuals
+        (default since decision 0001) or ``"mean"``. A mean is moved by a few
+        outliers, so fixing them on a frame with a bias of the other sign
+        raised |mean| and failed the gate.
     target_abs_bias_mm_yr : float
-        Release target per frame (reported, not a pass/fail condition).
+        Release target per frame (reported, not a pass/fail condition), on
+        the same bias statistic.
     bootstrap_ci : float
         Confidence level of the station-bootstrap intervals.
 
@@ -43,6 +49,7 @@ class GateThresholds:
     sill_min_pair_km: float = 50.0
     velocity_rmse_rise_max_mm_yr: float = 0.2
     velocity_bias_rise_max_mm_yr: float = 0.2
+    bias_statistic: str = "median"
     target_abs_bias_mm_yr: float = 1.0
     bootstrap_ci: float = 0.95
     independent_gnss_only: bool = field(default=True, init=False)

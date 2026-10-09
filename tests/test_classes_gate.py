@@ -19,6 +19,7 @@ from disp2vlm_validation.classes import (
     load_polygons,
     metrics_by_class,
     normalized_residuals,
+    sea_mask,
 )
 from disp2vlm_validation.gate import (
     GateConfig,
@@ -76,6 +77,7 @@ class TestClasses:
             land=land,
             pixel_m=100.0,
             coast_km=1.0,
+            sea_min_km2=0.0,  # this tiny strip counts as water here
         )
         assert (
             cls["EV"] == "near_event" and cls["EV2"] == "near_event"
@@ -93,6 +95,33 @@ class TestClasses:
         )
         assert cls2["SUB"] == "defo_area"
         assert set(cls2) <= set(CLASS_ORDER)
+
+    def test_coastal_means_the_sea_not_ponds(self):
+        """Decision 0001: a pond next to a station does not make it coastal;
+        a large water body (sea, joined bay) does."""
+        land = np.ones((400, 400), bool)
+        land[:, 300:] = False  # sea: 400 x 100 px of 100 m = 400 km2
+        land[100:103, 100:103] = False  # pond, 0.09 km2
+        st = pd.DataFrame(
+            {
+                "lon": 0.0,
+                "lat": 0.0,
+                "vu_mm_yr": 0.0,
+                "row": [101, 200],
+                "col": [105, 250],
+            },
+            index=["NEAR_POND", "NEAR_SEA"],
+        )
+        cls = classify_stations(
+            st, land=land, pixel_m=100.0, coast_km=10.0, sea_min_km2=300.0
+        )
+        assert cls["NEAR_POND"] == "stable" and cls["NEAR_SEA"] == "coastal"
+        any_water = classify_stations(
+            st, land=land, pixel_m=100.0, coast_km=10.0, sea_min_km2=0.0
+        )
+        assert any_water["NEAR_POND"] == "coastal"
+        assert sea_mask(land, 100.0, 300.0)[:, 300:].all()
+        assert not sea_mask(land, 100.0, 300.0)[100:103, 100:103].any()
 
     def test_metrics_by_class_and_sigma_realism(self):
         rng = np.random.default_rng(0)
@@ -115,14 +144,14 @@ class TestClasses:
         assert z[0] == pytest.approx(2.0) and np.isnan(z[1])
 
 
-BASE = {"bias": 1.0, "rmse": 2.0}
+BASE = {"bias": 1.0, "median": 1.0, "rmse": 2.0}
 
 
 def _inputs(**kw):
     d = dict(
         sill_candidate=80.0,
         sill_raw=250.0,
-        velocity_candidate={"bias": 1.1, "rmse": 2.1},
+        velocity_candidate={"bias": 1.1, "median": 1.1, "rmse": 2.1},
         sill_baseline=82.0,
         sill_change_vs_baseline_ci=(-8.0, 4.0),
         velocity_baseline=BASE,
@@ -157,10 +186,35 @@ class TestGate:
         ).passed
 
     def test_velocity_rules(self):
-        r = evaluate(_inputs(velocity_candidate={"bias": 1.0, "rmse": 2.3}))
+        r = evaluate(
+            _inputs(velocity_candidate={"bias": 1.0, "median": 1.0, "rmse": 2.3})
+        )
         assert not r.passed and "RMSE up +0.30" in r.reasons[0]
-        r = evaluate(_inputs(velocity_candidate={"bias": -1.25, "rmse": 2.0}))
-        assert not r.passed and "|bias| up +0.25" in r.reasons[0]
+        r = evaluate(
+            _inputs(velocity_candidate={"bias": -1.25, "median": -1.25, "rmse": 2.0})
+        )
+        assert not r.passed and "|median bias| up +0.25" in r.reasons[0]
+
+    def test_median_bias_is_not_moved_by_fixed_outliers(self):
+        """Decision 0001: fixing negative outliers on a positively biased frame
+        raises |mean| (TS-U1 on F08882: +1.14 -> +1.37) but not the median."""
+        base = {"bias": 1.14, "median": 0.95, "rmse": 4.79}
+        cand = {"bias": 1.37, "median": 0.95, "rmse": 4.31}
+        r = evaluate(_inputs(velocity_baseline=base, velocity_candidate=cand))
+        assert r.passed and r.deltas["bias_statistic"] == "median"
+        assert r.deltas["velocity_abs_bias_change_mm_yr"] == pytest.approx(0.0)
+        mean_gate = GateConfig(bias_statistic="mean")
+        r = evaluate(
+            _inputs(velocity_baseline=base, velocity_candidate=cand), mean_gate
+        )
+        assert not r.passed and "|bias| up +0.23" in r.reasons[0]
+        with pytest.raises(KeyError, match="median"):
+            evaluate(
+                _inputs(
+                    velocity_baseline={"bias": 1.0, "rmse": 2.0},
+                    velocity_candidate={"bias": 1.0, "rmse": 2.0},
+                )
+            )
 
     def test_golden_epoch_and_reported_targets(self):
         r = evaluate(_inputs(golden_epoch_ok=False))
@@ -171,11 +225,15 @@ class TestGate:
             }
         )
         r = evaluate(
-            _inputs(class_metrics={"subsiding": {"n": 5, "bias": 1.5, "rmse": 3.0}}),
+            _inputs(
+                class_metrics={
+                    "subsiding": {"n": 5, "bias": 1.5, "median": 1.5, "rmse": 3.0}
+                }
+            ),
             gate,
         )
         assert r.passed  # targets are reported, not gating
-        assert any("subsiding: |bias|" in n for n in r.notes)
+        assert any("subsiding: |median bias|" in n for n in r.notes)
         assert any("subsiding: RMSE" in n for n in r.notes)
         assert any("release target" in n for n in r.notes)  # |bias| 1.1 > 1.0
 
