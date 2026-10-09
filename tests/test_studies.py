@@ -75,3 +75,34 @@ def test_bias_by_block_splits_a_secular_drift_over_blocks(tmp_path):
     # each block (240 days) carries about 3 * 240 / 365 mm
     np.testing.assert_allclose(blocks["drift_mm"], 3.0 * 240 / 365.25, atol=1.0)
     assert bias_by_block(run, disp, cache, classes=["subsiding"])[1]["n_stations"] == 0
+
+
+def test_ts_g1_k_and_additive_fits():
+    """k recovers a known grid-sigma inflation; the additive model recovers sigma0."""
+    ts = _load("ts_g1")
+    rng = np.random.default_rng(1)
+    n = 4000
+    sg = rng.uniform(0.2, 1.0, n)
+    ss = np.full(n, 0.3)
+    r = rng.normal(0, np.sqrt((2.5 * sg) ** 2 + ss**2))
+    assert ts.fit_k(r, sg, ss) == pytest.approx(2.5, rel=0.05)
+    assert ts.fit_k(r, sg, ss, robust=True) == pytest.approx(2.5, rel=0.08)
+    assert ts.fit_k(np.zeros(5), np.ones(5), np.ones(5)) == 0.0
+
+    dt = rng.uniform(0.03, 1.0, n)
+    pairs = pd.DataFrame(
+        {"dt_years": dt, "sigma_grid": 0.5 * dt, "sigma_station": 1.0},
+        index=[f"S{i % 50}" for i in range(n)],
+    )
+    pairs["r"] = rng.normal(0, np.sqrt(3.0**2 + (2.0 * pairs.sigma_grid) ** 2 + 1.0))
+    s0, k = ts.fit_additive(pairs)
+    assert s0 == pytest.approx(3.0, rel=0.1)
+    z = ts.z_additive(pairs, s0, k)
+    assert np.std(z) == pytest.approx(1.0, abs=0.05)
+    out = ts.analyze_pairs(pairs)
+    assert out["additive"]["validation"]["coverage95"] == pytest.approx(0.95, abs=0.02)
+
+    lon = np.array([0.0, 0.1, 1.0])
+    lat = np.zeros(3)
+    d = ts.nearest_km(lon, lat, lon, lat, exclude_self=True)
+    np.testing.assert_allclose(d[:2], 11.12, rtol=0.01)
