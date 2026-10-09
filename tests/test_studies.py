@@ -168,7 +168,9 @@ def test_ts_u1_scores_block_errors_and_decoys():
     off = raw.copy()
     on = raw.copy()
     on.loc[on.index.get_level_values("ref") == dates[10], "ISL"] -= cyc
-    cases, _, summary = ts.score(raw, gnss, off, on, {"ISL": "MAIN"}, ["MAIN", "DEC"])
+    cases, _, summary = ts.score(
+        raw, gnss, off, on, partners={"ISL": "MAIN"}, mainland=["MAIN", "DEC"]
+    )
     assert summary["decoy_shifts"] == 0
     blocks, bs = ts.score_blocks(cases)
     assert bs["error_blocks"] == 1 and bs["shifted_blocks"] == 1

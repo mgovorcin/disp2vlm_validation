@@ -26,8 +26,10 @@ and the block's reference date is the pair's own displacement.
 
     python studies/ts_u1.py --frame F08882 --stations RUN/stations.csv \
         --raw CACHE/stack_*/raw_station_series_mm.csv \
-        --cal-off V05_RUN/station_series_mm.csv --cal-on UNWRAP_RUN/station_series_mm.csv \
-        --daily CACHE/gnss_enu_daily.csv.gz --disp-dir DISP --water-mask WM.tif --out OUT
+        --cal-off V05_RUN/station_series_mm.csv \
+        --cal-on UNWRAP_RUN/station_series_mm.csv \
+        --daily CACHE/gnss_enu_daily.csv.gz --disp-dir DISP \
+        --water-mask WM.tif --out OUT
 """
 
 from __future__ import annotations
@@ -45,7 +47,7 @@ CYCLE_MM = 0.055465763 / 2 * 1000.0  # Sentinel-1 C band, lambda / 2 of LOS
 
 
 def pair_values(series: pd.DataFrame, pairs: list[tuple[pd.Timestamp, pd.Timestamp]]):
-    """Per-pair displacement (sec minus the block's reference date): pairs x stations."""
+    """Per-pair displacement: sec minus the block's reference date."""
     idx = series.index
     rows = {}
     for ref, sec in pairs:
@@ -84,7 +86,7 @@ def nearest_partner(
     for s in island:
         d = {m: float(np.hypot(*(pos[s] - pos[m]))) for m in mainland}
         if d:
-            m = min(d, key=d.get)
+            m = min(d, key=lambda k: d[k])
             if d[m] <= max_km:
                 out[s] = m
     return out
@@ -95,6 +97,7 @@ def score(
     gnss: pd.DataFrame,
     cal_off: pd.DataFrame,
     cal_on: pd.DataFrame,
+    *,
     partners: dict[str, str],
     mainland: list[str],
     label_tolerance: float = 0.25,
@@ -234,7 +237,12 @@ def main() -> None:
     raw = series(a.raw)
     gnss = gnss_pair_values(wide, list(raw.index)).reindex(raw.index)
     cases, _, summary = score(
-        raw, gnss, series(a.cal_off), series(a.cal_on), partners, mainland
+        raw,
+        gnss,
+        series(a.cal_off),
+        series(a.cal_on),
+        partners=partners,
+        mainland=mainland,
     )
     blocks, block_summary = score_blocks(cases) if len(cases) else (pd.DataFrame(), {})
     summary.update(blocks=block_summary)
