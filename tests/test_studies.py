@@ -106,3 +106,45 @@ def test_ts_g1_k_and_additive_fits():
     lat = np.zeros(3)
     d = ts.nearest_km(lon, lat, lon, lat, exclude_self=True)
     np.testing.assert_allclose(d[:2], 11.12, rtol=0.01)
+
+
+def test_ts_s1_removes_gnss_noise_and_pools_pairs():
+    """Known DISP and GNSS noise: the GNSS part is removed, S is recovered."""
+    ts = _load("ts_s1")
+    rng = np.random.default_rng(2)
+    dates = pd.date_range("2020-01-01", periods=400, freq="D")
+    st = pd.DataFrame({"los_e": 0.0, "los_n": 0.0, "los_u": 1.0}, index=["A", "B"])
+    daily = pd.DataFrame(
+        [
+            {
+                "station": s,
+                "date": d,
+                "east": 0.0,
+                "north": 0.0,
+                "up": rng.normal(0, 0.003),
+            }
+            for s in st.index
+            for d in dates
+        ]
+    )
+    sig = ts.gnss_daily_sigma(daily, st)
+    np.testing.assert_allclose(sig, 3.0, rtol=0.1)  # mm
+
+    n = 300
+    dist = rng.uniform(1, 60, n)
+    pairs = pd.DataFrame(
+        {
+            "station1": "A",
+            "station2": "B",
+            "distance_km": dist,
+            "rmse": np.sqrt(8.0**2 + 2 * 3.0**2) * np.ones(n),
+        }
+    )
+    pv = ts.disp_pair_variance(pairs, pd.Series({"A": 3.0, "B": 3.0}))
+    np.testing.assert_allclose(pv["var_disp"], 64.0)
+    pooled = ts.pooled_s(pv)
+    assert pooled["S_mm"] == pytest.approx(8.0)
+    assert pooled["S_point_mm"] == pytest.approx(8.0 / np.sqrt(2))
+    sf = ts.structure_function(pv)
+    assert (sf["S_mm"].round(6) == 8.0).all() and sf["n_pairs"].sum() == n
+    assert np.isnan(ts.fit_model(sf.iloc[:2])["nugget_mm"])  # too few bins

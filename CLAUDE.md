@@ -25,7 +25,9 @@ Baselines and the T38 comparison: `docs/baselines.md`.
 
 - **Only independent GNSS.** Never read the UNR gridded field or anything
   derived from it (the calibration's own input). `GATE.independent_gnss_only`
-  is not a constructor argument on purpose.
+  is not a constructor argument on purpose. The one exception is
+  `studies/ts_g1.py` (TS-G1), whose subject *is* the grid: it reads it to
+  compare it with stations and never feeds the gate or a report.
 - Gate numbers live only in `requirements.py`; a change there changes what
   passes and needs a decision record in `docs/decisions/`.
 - No product writing; no runtime dependency on cal-disp. Venti is an optional
