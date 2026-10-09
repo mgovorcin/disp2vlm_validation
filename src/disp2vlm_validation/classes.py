@@ -149,7 +149,7 @@ def metrics_by_class(
             r = res[sel]
             row["bias"] = float(np.mean(r))
             row["rmse"] = float(np.sqrt(np.mean(r**2)))
-        if n >= 3:
+        if n >= 3 and np.std(insar[sel]) > 0 and np.std(gnss[sel]) > 0:
             row["corr"] = float(np.corrcoef(insar[sel], gnss[sel])[0, 1])
         zs = z[sel]
         zs = zs[np.isfinite(zs)]

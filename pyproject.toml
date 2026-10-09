@@ -55,6 +55,9 @@ fallback_version = "0.0.0"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+disp2vlm_validation = ["*.yaml", "templates/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"

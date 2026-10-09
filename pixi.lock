@@ -2356,8 +2356,8 @@ packages:
   timestamp: 1787845029550
 - pypi: ./
   name: disp2vlm-validation
-  version: 0.0.1.dev0+d20261006
-  sha256: 252fe390d8c9a86da70428859392149e819d00f79db0e26f5184bb670d88f4ea
+  version: 0.0.1.dev2+g21148540e.d20261009
+  sha256: b9f947df330264f5a5e254717aef3bf18c9585ca4648f56bdc385f05f20b0d9a
   requires_dist:
   - numpy
   - pandas
@@ -2367,6 +2367,9 @@ packages:
   - h5netcdf
   - pyproj
   - pyyaml
+  - pydantic>=2
+  - h5py
+  - shapely>=2
   - jinja2
   - matplotlib
   - tyro>=0.9.24

@@ -1,0 +1,41 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ m.frame }} validation</title>
+<style>{{ css }}</style></head><body>
+<h1>{{ m.frame }}: {{ m.label }}</h1>
+<p><span class="badge {{ 'pass' if m.verdict == 'PASS' else 'fail' }}">{{ '✓' if m.verdict == 'PASS' else '✗' }} {{ m.verdict }}</span>
+<span class="muted">{{ m.n_epochs }} epochs{{ ' (partial)' if m.partial }} · {{ m.n_gnss_stations }} GNSS stations ·
+reference pixel {{ m.reference_pixel }} · disp2vlm-validation {{ m.package_version }}</span></p>
+{% if m.verdict_reasons %}<ul>{% for r in m.verdict_reasons %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
+{% if m.notes %}<p class="muted">Notes (not gating):</p><ul>{% for r in m.notes %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
+
+<h2>Double-difference sill</h2>
+<p class="muted">Sill = median γ = RMSE²/2 of station pairs ≥ {{ m.sill_min_km }} km apart (InSAR − GNSS, relative series:
+datum-free). Calibration must lower it. 95% intervals: station bootstrap, paired across variants.</p>
+<table><tr><th>variant</th><th>stations</th><th>pairs</th><th>median pair RMSE (mm)</th><th>γ near (mm²)</th><th>sill (mm²)</th><th>sill 95% CI</th></tr>
+{% for name, s in m.double_difference.items() %}<tr><td>{{ name }}</td><td>{{ s.n_stations }}</td><td>{{ s.n_pairs }}</td>
+<td>{{ f(s.median_pair_rmse) }}</td><td>{{ f(s.near_gamma) }}</td><td>{{ f(s.sill) }}</td><td>{{ f(s.ci_lo, 0) }}–{{ f(s.ci_hi, 0) }}</td></tr>{% endfor %}</table>
+<p>Calibrated vs raw: {{ sg(m.sill_change_vs_raw.pct) }}% (95% CI {{ sg(m.sill_change_vs_raw.ci95[0]) }} to {{ sg(m.sill_change_vs_raw.ci95[1]) }}%).
+{% if m.sill_change_vs_baseline %}Vs baseline: {{ sg(m.sill_change_vs_baseline.pct) }}%
+(95% CI {{ sg(m.sill_change_vs_baseline.ci95[0]) }} to {{ sg(m.sill_change_vs_baseline.ci95[1]) }}%).{% endif %}</p>
+<figure><img src="figures/semivariogram.svg" alt="Misfit semivariogram per variant"></figure>
+<details><summary>Semivariogram data</summary>{{ sv_table }}</details>
+
+<h2>Velocity vs MIDAS (LOS, station pixel)</h2>
+<table><tr><th>variant</th><th>n</th><th>bias</th><th>median</th><th>RMSE</th><th>std</th><th>NMAD</th><th>r²</th></tr>
+{% for name, s in m.velocity_los.items() %}<tr><td>{{ name }}</td><td>{{ s.n }}</td><td>{{ sg(s.bias, 2) }}</td><td>{{ sg(s.median, 2) }}</td>
+<td>{{ f(s.rmse, 2) }}</td><td>{{ f(s.std, 2) }}</td><td>{{ f(s.nmad, 2) }}</td><td>{{ f(s.r2, 3) }}</td></tr>{% endfor %}</table>
+<p class="muted">mm/yr. Raw is referenced to one pixel, so its bias depends on that pixel; compare its std, NMAD and r².</p>
+<figure><img src="figures/velocity_scatter.svg" alt="InSAR against GNSS velocity at the stations"></figure>
+<details><summary>Station data</summary>{{ st_table }}</details>
+
+<h2>By station class (calibrated)</h2>
+<table><tr><th>class</th><th>n</th><th>bias</th><th>RMSE</th><th>corr</th></tr>
+{% for r in m.velocity_by_class %}{% if r.n %}<tr><td>{{ r['class'] }}</td><td>{{ r.n }}</td><td>{{ sg(r.bias, 2) }}</td><td>{{ f(r.rmse, 2) }}</td><td>{{ f(r.corr, 2) }}</td></tr>{% endif %}{% endfor %}</table>
+<figure><img src="figures/class_rmse.svg" alt="Calibrated velocity RMSE per station class"></figure>
+
+<h2>Requirements traceability</h2>
+<table><tr><th>ID</th><th>requirement</th><th>status</th><th>evidence</th><th>gating</th></tr>
+{% for r in trace %}<tr><td>{{ r.id }}</td><td style="text-align:left">{{ r.requirement }}</td><td>{{ r.status }}</td><td>{{ r.evidence }}</td><td>{{ 'yes' if r.gating else 'no' }}</td></tr>{% endfor %}</table>
+<p class="muted">Excluded stations: {{ m.excluded_stations | join(', ') or 'none' }}. Held out: {{ m.held_out_stations | length }}.
+Golden-epoch check: {{ m.golden_epoch_check }}.</p>
+</body></html>

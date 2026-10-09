@@ -1,0 +1,18 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Release summary</title>
+<style>{{ css }}</style></head><body>
+<h1>{{ title }}</h1><p class="muted">{{ runs | length }} frame runs · {{ n_pass }} PASS · {{ runs | length - n_pass }} FAIL</p>
+<table><tr><th>frame</th><th>run</th><th>verdict</th><th>sill raw → calibrated (mm²)</th><th>vs raw</th><th>vs baseline</th><th>velocity bias</th><th>velocity RMSE</th></tr>
+{% for m in runs %}<tr><td>{{ m.frame }}</td><td><a href="{{ m._link }}">{{ m.label }}</a></td>
+<td><span class="badge {{ 'pass' if m.verdict == 'PASS' else 'fail' }}">{{ m.verdict }}</span></td>
+<td>{{ f(m.double_difference.raw.sill) }} → {{ f(m.double_difference.calibrated.sill) }}</td>
+<td>{{ sg(m.sill_change_vs_raw.pct) }}%</td>
+<td>{{ (sg(m.sill_change_vs_baseline.pct) ~ '%') if m.sill_change_vs_baseline else '–' }}</td>
+<td>{{ sg(m.velocity_los.calibrated.bias, 2) }}</td><td>{{ f(m.velocity_los.calibrated.rmse, 2) }}</td></tr>{% endfor %}</table>
+<p class="muted">mm/yr for velocities. FAIL reasons:</p><ul>
+{% for m in runs %}{% for r in m.verdict_reasons %}<li>{{ m.frame }}: {{ r }}</li>{% endfor %}{% endfor %}</ul>
+<h2>Traceability (all frames)</h2>
+<table><tr><th>ID</th><th>requirement</th>{% for m in runs %}<th>{{ m.frame }}</th>{% endfor %}</tr>
+{% for row in trace_rows %}<tr><td>{{ row.id }}</td><td style="text-align:left">{{ row.requirement }}</td>
+{% for s in row.statuses %}<td>{{ s }}</td>{% endfor %}</tr>{% endfor %}</table>
+</body></html>
