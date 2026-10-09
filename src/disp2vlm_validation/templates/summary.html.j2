@@ -9,8 +9,9 @@
 <td>{{ sg(m.sill_change_vs_raw.pct) }}%</td>
 <td>{{ (sg(m.sill_change_vs_baseline.pct) ~ '%') if m.sill_change_vs_baseline else '–' }}</td>
 <td>{{ sg(m.velocity_los.calibrated.bias, 2) }}</td><td>{{ f(m.velocity_los.calibrated.rmse, 2) }}</td></tr>{% endfor %}</table>
-<p class="muted">mm/yr for velocities. FAIL reasons:</p><ul>
-{% for m in runs %}{% for r in m.verdict_reasons %}<li>{{ m.frame }}: {{ r }}</li>{% endfor %}{% endfor %}</ul>
+<p class="muted">mm/yr for velocities.</p>
+{% if n_pass < runs | length %}<p>FAIL reasons:</p><ul>
+{% for m in runs %}{% for r in m.verdict_reasons %}<li>{{ m.frame }}: {{ r }}</li>{% endfor %}{% endfor %}</ul>{% endif %}
 <h2>Traceability (all frames)</h2>
 <table><tr><th>ID</th><th>requirement</th>{% for m in runs %}<th>{{ m.frame }}</th>{% endfor %}</tr>
 {% for row in trace_rows %}<tr><td>{{ row.id }}</td><td style="text-align:left">{{ row.requirement }}</td>
