@@ -148,3 +148,29 @@ def test_ts_s1_removes_gnss_noise_and_pools_pairs():
     sf = ts.structure_function(pv)
     assert (sf["S_mm"].round(6) == 8.0).all() and sf["n_pairs"].sum() == n
     assert np.isnan(ts.fit_model(sf.iloc[:2])["nugget_mm"])  # too few bins
+
+
+def test_ts_u1_scores_block_errors_and_decoys():
+    """An island with a 1-cycle error through one block; the correction removes
+    it there and nowhere else -> precision and recall 1, no decoy shift."""
+    ts = _load("ts_u1")
+    cyc = ts.CYCLE_MM
+    dates = pd.date_range("2020-01-01", periods=21, freq="12D")
+    pairs = [(dates[0], d) for d in dates[1:11]] + [(dates[10], d) for d in dates[11:]]
+    rng = np.random.default_rng(3)
+    gnss_cum = pd.DataFrame(
+        {"ISL": np.arange(21) * 0.5, "MAIN": 0.0, "DEC": 0.0}, index=dates
+    )
+    raw_cum = gnss_cum + rng.normal(0, 0.5, gnss_cum.shape)
+    raw_cum.loc[dates[11] :, "ISL"] += cyc  # error inside the second block only
+    raw = ts.pair_values(raw_cum, pairs)
+    gnss = ts.pair_values(gnss_cum, pairs)
+    off = raw.copy()
+    on = raw.copy()
+    on.loc[on.index.get_level_values("ref") == dates[10], "ISL"] -= cyc
+    cases, _, summary = ts.score(raw, gnss, off, on, {"ISL": "MAIN"}, ["MAIN", "DEC"])
+    assert summary["decoy_shifts"] == 0
+    blocks, bs = ts.score_blocks(cases)
+    assert bs["error_blocks"] == 1 and bs["shifted_blocks"] == 1
+    assert bs["precision"] == 1.0 and bs["recall"] == 1.0
+    assert set(blocks["true_error"].dropna()) == {0.0, 1.0}
