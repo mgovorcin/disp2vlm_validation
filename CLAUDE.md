@@ -11,11 +11,15 @@ the operational image.
 ## Architecture
 
 `src/disp2vlm_validation/`: `requirements.py` (the gate and benchmark frames
-as data, the single source of the numbers), `cli.py` (`disp2vlm-validate`,
-tyro subcommands). Coming (Venti plan T21–T25): `stack.py` (read DISP and
-DISP-CAL stacks), `gnss.py` (stations, MIDAS, station classes), `metrics.py`
-(DD sill with bootstrap CI, velocity stats, σ realism), `gate.py`
-(candidate vs raw / baseline), `report.py` (HTML/PDF, traceability).
+as data, the single source of the numbers), `stack.py` (DISP and DISP-CAL
+stacks, streaming velocity fit), `gnss.py` (UNR + MIDAS, frozen per frame;
+station sampler, held-out split), `metrics.py` (DD sill with paired bootstrap,
+velocity stats), `classes.py` (station classes, per-class metrics, σ realism),
+`gate.py` (`gate.yaml`, `evaluate`, golden-epoch check), `pipeline.py` (one
+frame run, `RunConfig`, caches), `report.py` + `templates/` (HTML, SVG,
+traceability from `traceability.yaml`), `cli.py` (`gate`, `run`, `summary`).
+`studies/` holds one-off analyses (e.g. `bias_by_block.py`), each with a test.
+Baselines and the T38 comparison: `docs/baselines.md`.
 
 ## Invariants (do not break without a decision record)
 
