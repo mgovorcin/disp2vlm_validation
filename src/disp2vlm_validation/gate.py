@@ -62,6 +62,10 @@ class GateConfig(BaseModel):
     bias_statistic: Literal["median", "mean"] = GATE.bias_statistic  # type: ignore[assignment]
     target_abs_bias_mm_yr: float = GATE.target_abs_bias_mm_yr
     significance_ci: float = GATE.bootstrap_ci
+    velocity_excluded_classes: list[str] = Field(
+        default_factory=lambda: list(GATE.velocity_excluded_classes),
+        description="Station classes left out of the velocity rules (decision 0002)",
+    )
     per_class_targets: dict[str, ClassTarget] = Field(default_factory=dict)
 
     model_config = {"extra": "forbid"}
