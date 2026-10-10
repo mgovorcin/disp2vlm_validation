@@ -27,6 +27,9 @@ dependencies = [
   "h5netcdf",
   "pyproj",
   "pyyaml",
+  "pydantic>=2",
+  "h5py",
+  "shapely>=2",
   "jinja2",
   "matplotlib",
   "tyro>=0.9.24",
@@ -51,6 +54,9 @@ fallback_version = "0.0.0"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+disp2vlm_validation = ["*.yaml", "templates/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -95,6 +101,8 @@ rioxarray = "*"
 h5netcdf = "*"
 pyproj = ">=3.3"
 pyyaml = "*"
+pydantic = ">=2"
+h5py = "*"
 jinja2 = "*"
 matplotlib-base = "*"
 geopandas-base = "*"

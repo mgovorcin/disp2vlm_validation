@@ -1,0 +1,216 @@
+# Copyright (c) 2026 California Institute of Technology ("Caltech").
+# U.S. Government sponsorship acknowledged.
+# SPDX-License-Identifier: Apache-2.0
+"""Station classes, per-class metrics and the release gate (Venti plan T22, T23)."""
+
+from __future__ import annotations
+
+import json
+import os
+import stat
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from disp2vlm_validation.classes import (
+    CLASS_ORDER,
+    classify_stations,
+    load_polygons,
+    metrics_by_class,
+    normalized_residuals,
+)
+from disp2vlm_validation.gate import (
+    GateConfig,
+    GateInputs,
+    evaluate,
+    golden_epoch_check,
+    load_gate,
+)
+
+
+def _box(lon0, lat0, lon1, lat1):
+    return {
+        "type": "Polygon",
+        "coordinates": [
+            [[lon0, lat0], [lon1, lat0], [lon1, lat1], [lon0, lat1], [lon0, lat0]]
+        ],
+    }
+
+
+class TestClasses:
+    def test_priority_and_each_class(self, tmp_path):
+        st = pd.DataFrame(
+            {
+                "lon": [-95.5, -95.5, -95.0, -94.0, -93.0, -93.0],
+                "lat": [29.5, 29.5, 29.0, 29.0, 29.0, 29.0],
+                "vu_mm_yr": [-10.0, -10.0, -10.0, 0.0, 0.0, -1.0],
+                "row": [50, 50, 50, 50, 5, 90],
+                "col": [50, 50, 50, 50, 50, 20],
+            },
+            index=["EV", "EV2", "SUB", "COAST", "STAB", "STAB2"],
+        )
+        st.loc["COAST", ["row", "col"]] = (95, 95)  # next to the water column
+        events = tmp_path / "events.geojson"
+        events.write_text(
+            json.dumps(
+                {
+                    "type": "FeatureCollection",
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "properties": {},
+                            "geometry": _box(-95.6, 29.4, -95.4, 29.6),
+                        }
+                    ],
+                }
+            )
+        )
+        defo = [*load_polygons(None)]
+        land = np.ones((100, 100), bool)
+        land[:, 98:] = False
+        cls = classify_stations(
+            st,
+            events=load_polygons(events),
+            defo_areas=defo,
+            land=land,
+            pixel_m=100.0,
+            coast_km=1.0,
+        )
+        assert (
+            cls["EV"] == "near_event" and cls["EV2"] == "near_event"
+        )  # beats subsiding
+        assert cls["SUB"] == "subsiding"
+        assert cls["COAST"] == "coastal"  # 3 px * 100 m from water
+        assert (
+            cls["STAB"] == "stable" and cls["STAB2"] == "stable"
+        )  # -1 mm/yr not subsiding
+        # a defo area outranks subsiding, an event outranks the defo area
+        from shapely.geometry import box
+
+        cls2 = classify_stations(
+            st, defo_areas=[box(-95.2, 28.8, -94.8, 29.2)], land=land, pixel_m=100.0
+        )
+        assert cls2["SUB"] == "defo_area"
+        assert set(cls2) <= set(CLASS_ORDER)
+
+    def test_metrics_by_class_and_sigma_realism(self):
+        rng = np.random.default_rng(0)
+        n = 400
+        gnss = rng.normal(0, 5, n)
+        sig_i, sig_g = 1.0, 0.5
+        insar = gnss + rng.normal(0, np.hypot(sig_i, sig_g), n) + 0.3
+        classes = pd.Series(np.where(np.arange(n) < 300, "stable", "coastal"))
+        m = metrics_by_class(insar, gnss, classes, sigma_insar=sig_i, sigma_gnss=sig_g)
+        assert m.loc["all", "n"] == n and m.loc["stable", "n"] == 300
+        assert m.loc["all", "bias"] == pytest.approx(0.3, abs=0.15)
+        assert 0.9 < m.loc["all", "std_z"] < 1.1
+        assert 0.92 < m.loc["all", "coverage95"] < 0.98
+        assert m.loc["subsiding", "n"] == 0
+        no_sigma = metrics_by_class(insar, gnss, classes)
+        assert "std_z" not in no_sigma.columns or np.isnan(
+            no_sigma.loc["all"].get("std_z", np.nan)
+        )
+        z = normalized_residuals(np.array([2.0, 1.0]), np.array([1.0, 0.0]), 0.0)
+        assert z[0] == pytest.approx(2.0) and np.isnan(z[1])
+
+
+BASE = {"bias": 1.0, "rmse": 2.0}
+
+
+def _inputs(**kw):
+    d = dict(
+        sill_candidate=80.0,
+        sill_raw=250.0,
+        velocity_candidate={"bias": 1.1, "rmse": 2.1},
+        sill_baseline=82.0,
+        sill_change_vs_baseline_ci=(-8.0, 4.0),
+        velocity_baseline=BASE,
+    )
+    d.update(kw)
+    return GateInputs(**d)
+
+
+class TestGate:
+    def test_pass(self):
+        r = evaluate(_inputs())
+        assert r.passed and r.verdict == "PASS" and r.reasons == []
+        assert r.deltas["sill_change_vs_raw_pct"] == pytest.approx(-68.0)
+
+    def test_sill_not_below_raw(self):
+        r = evaluate(_inputs(sill_candidate=260.0, sill_baseline=None))
+        assert not r.passed and "not reduced by calibration" in r.reasons[0]
+
+    def test_sill_rise_must_be_large_and_significant(self):
+        # +10% but the CI includes 0: not significant -> pass
+        assert evaluate(
+            _inputs(sill_candidate=90.2, sill_change_vs_baseline_ci=(-2.0, 20.0))
+        ).passed
+        # +10% and significant -> fail
+        r = evaluate(
+            _inputs(sill_candidate=90.2, sill_change_vs_baseline_ci=(3.0, 20.0))
+        )
+        assert not r.passed and "DD sill up +10.0%" in r.reasons[0]
+        # +4% significant but under the 5% limit -> pass
+        assert evaluate(
+            _inputs(sill_candidate=85.3, sill_change_vs_baseline_ci=(1.0, 8.0))
+        ).passed
+
+    def test_velocity_rules(self):
+        r = evaluate(_inputs(velocity_candidate={"bias": 1.0, "rmse": 2.3}))
+        assert not r.passed and "RMSE up +0.30" in r.reasons[0]
+        r = evaluate(_inputs(velocity_candidate={"bias": -1.25, "rmse": 2.0}))
+        assert not r.passed and "|bias| up +0.25" in r.reasons[0]
+
+    def test_golden_epoch_and_reported_targets(self):
+        r = evaluate(_inputs(golden_epoch_ok=False))
+        assert not r.passed and r.reasons == ["golden-epoch check failed"]
+        gate = GateConfig(
+            per_class_targets={
+                "subsiding": {"max_abs_bias_mm_yr": 1.0, "max_rmse_mm_yr": 2.0}
+            }
+        )
+        r = evaluate(
+            _inputs(class_metrics={"subsiding": {"n": 5, "bias": 1.5, "rmse": 3.0}}),
+            gate,
+        )
+        assert r.passed  # targets are reported, not gating
+        assert any("subsiding: |bias|" in n for n in r.notes)
+        assert any("subsiding: RMSE" in n for n in r.notes)
+        assert any("release target" in n for n in r.notes)  # |bias| 1.1 > 1.0
+
+    def test_gate_yaml(self, tmp_path):
+        assert load_gate(None).sill_rise_max_pct == pytest.approx(5.0)
+        p = tmp_path / "gate.yaml"
+        p.write_text(
+            "release: v0.5\nsill_rise_max_pct: 15\nper_class_targets:\n  stable:\n   "
+            " max_abs_bias_mm_yr: 1.0\n"
+        )
+        g = load_gate(p)
+        assert (
+            g.sill_rise_max_pct == 15
+            and g.per_class_targets["stable"].max_abs_bias_mm_yr == 1.0
+        )
+        assert evaluate(
+            _inputs(sill_candidate=90.2, sill_change_vs_baseline_ci=(3.0, 20.0)), g
+        ).passed
+        p.write_text("unknown_key: 1\n")
+        with pytest.raises(ValueError, match="unknown_key"):
+            load_gate(p)
+
+
+def _fake_exe(tmp_path, code: int):
+    exe = tmp_path / f"fake-{code}"
+    exe.write_text(f'#!/bin/sh\necho validate "$@"\nexit {code}\n')
+    exe.chmod(exe.stat().st_mode | stat.S_IXUSR)
+    return str(exe)
+
+
+def test_golden_epoch_check_wraps_the_cal_disp_cli(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ["PATH"])
+    ok, out = golden_epoch_check("g.nc", "t.nc", executable=_fake_exe(tmp_path, 0))
+    assert ok and "validate g.nc t.nc" in out
+    ok, _ = golden_epoch_check("g.nc", "t.nc", executable=_fake_exe(tmp_path, 1))
+    assert not ok
+    with pytest.raises(FileNotFoundError, match="not found"):
+        golden_epoch_check("g", "t", executable="no-such-cal-disp")

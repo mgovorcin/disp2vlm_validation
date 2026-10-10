@@ -1,0 +1,14 @@
+# T38: cal-disp v0.5 (loclin 50 km two-pass, coh^8 + robust, k=3.9) vs gamma
+label: v05-loclin
+frame:
+  frame: F08886
+  disp_dir: /mnt/aurora-z0/cabrera/opera_vlm/data/okc_08886/frame_8886/disp_s1
+  water_mask: /mnt/aurora-z0/cabrera/opera_vlm/data/okc_08886/frame_8886/water_mask.tif
+  los_file: /mnt/aurora-z0/govorcin/cal_disp_e2e/frames/F08886/input_data/static_input/OPERA_L3_DISP-S1-STATIC_F08886_20160705_S1A_v1.0_line_of_sight_enu.tif
+  cache_dir: /mnt/aurora-z0/govorcin/cal_disp_e2e/cache_F08886
+  ref_pixel: [2459, 5321]
+  exclude_stations: []
+candidate_dir: /mnt/aurora-z0/govorcin/cal_disp_e2e/runs/F08886-v05-loclin/products
+baseline_dir: /mnt/aurora-z0/govorcin/cal_disp_e2e/runs/F08886-venti600-notropo/validation
+out_dir: /mnt/aurora-z0/govorcin/cal_disp_e2e/t38/runs/F08886/v05-loclin
+workers: 6

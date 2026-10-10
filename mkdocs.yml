@@ -5,6 +5,7 @@ theme:
 nav:
   - Home: index.md
   - Scope: scope.md
+  - Baselines: baselines.md
   - API: api.md
 plugins:
   - search

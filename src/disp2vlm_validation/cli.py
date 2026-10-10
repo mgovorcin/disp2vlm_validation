@@ -3,14 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """``disp2vlm-validate`` command line.
 
-Only the ``gate`` subcommand exists today (prints the release gate and the
-benchmark frames); the metric subcommands land with the e2e port (plan T21).
+``gate`` prints the release gate and the benchmark frames; ``run`` validates
+one candidate on one frame (``run.yaml``, see `pipeline.RunConfig`);
+``summary`` gathers frame runs into ``release_summary.html``.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict
+from pathlib import Path
 from typing import Annotated, Literal
 
 import tyro
@@ -34,9 +37,52 @@ def gate(
         print(f"  {num}. {f['frame']:7s} {f['name']:32s} {f['condition']}")
 
 
+def run(config: Path, no_cache: bool = False, verbose: bool = False) -> None:
+    """Validate one candidate on one frame; write metrics, figures, report.html.
+
+    Parameters
+    ----------
+    config
+        ``run.yaml`` (`disp2vlm_validation.pipeline.RunConfig`).
+    no_cache
+        Recompute even when ``metrics.json`` has the same config hash.
+    verbose
+        Debug logging.
+
+    """
+    from .pipeline import load_run_config, run_validation
+
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+    m = run_validation(load_run_config(config), use_cache=not no_cache)
+    print(f"{m['frame']} {m['label']}: {m['verdict']}")
+    for r in m["verdict_reasons"]:
+        print(f"  - {r}")
+
+
+def summary(
+    runs: list[Path],
+    /,
+    out: Path = Path("release_summary.html"),
+    title: str = "Release summary",
+) -> None:
+    """Gather frame runs (folders with ``metrics.json``) into one HTML page."""
+    from .report import write_summary
+
+    path = write_summary(runs, out, title)
+    for d in runs:
+        m = json.loads((Path(d) / "metrics.json").read_text())
+        print(f"{m['frame']:8s} {m['label']:24s} {m['verdict']}")
+    print(f"wrote {path}")
+
+
 def main() -> None:
     """Entry point."""
-    tyro.extras.subcommand_cli_from_dict({"gate": gate}, description=__doc__)
+    tyro.extras.subcommand_cli_from_dict(
+        {"gate": gate, "run": run, "summary": summary}, description=__doc__
+    )
 
 
 if __name__ == "__main__":
