@@ -255,12 +255,34 @@ class TestGate:
         good = {"defo_area": {"n": 40, "bias": 0.5, "median": 0.5, "rmse": 1.9}}
         assert evaluate(_inputs(class_metrics=good), gate).passed
 
+    def test_class_rmse_must_drop_vs_raw(self):
+        """Owner 2026-10-10: the class RMSE must drop from raw (offset removed)."""
+        gate = GateConfig(
+            per_class_targets={
+                "defo_area": {"rmse_must_drop_vs_raw": True, "gating": True}
+            }
+        )
+        cal = {"defo_area": {"n": 82, "bias": 0.9, "median": 0.9, "rmse": 4.87}}
+        raw = {"defo_area": {"n": 82, "bias": 0.1, "median": 0.1, "rmse": 3.00}}
+        r = evaluate(_inputs(class_metrics=cal, class_metrics_raw=raw), gate)
+        assert not r.passed
+        assert r.reasons == [
+            "defo_area (benchmark condition): RMSE 4.87 not below raw 3.00 mm/yr"
+            " (offset removed)"
+        ]
+        raw["defo_area"]["rmse"] = 6.0
+        assert evaluate(_inputs(class_metrics=cal, class_metrics_raw=raw), gate).passed
+        # no raw metrics for the class: nothing to compare
+        assert evaluate(_inputs(class_metrics=cal), gate).passed
+
     def test_houston_gate_file(self):
         from pathlib import Path
 
         path = Path(__file__).parents[1] / "configs" / "aurora" / "gate_F08882.yaml"
         g = load_gate(path)
         assert all(t.gating for t in g.per_class_targets.values())
+        assert all(t.rmse_must_drop_vs_raw for t in g.per_class_targets.values())
+        assert all(t.max_rmse_mm_yr is None for t in g.per_class_targets.values())
         assert {"defo_area", "subsiding"} <= set(g.per_class_targets)
 
     def test_gate_yaml(self, tmp_path):

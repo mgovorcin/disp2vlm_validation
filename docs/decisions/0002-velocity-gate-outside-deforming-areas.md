@@ -1,6 +1,6 @@
 # 0002. The velocity rules score the stations the calibration is responsible for
 
-- **Status:** accepted (owner, 2026-10-10), with decision 3 below
+- **Status:** accepted (owner, 2026-10-10)
 - **Changes:** `requirements.GATE.velocity_excluded_classes = ("defo_area",
   "near_event")`; the `gate.yaml` field `velocity_excluded_classes`
   (`[]` restores the all-station rule); `metrics.json` gains
@@ -41,10 +41,16 @@ stable station. The 2018 eruption is now an event in the Venti event DB
    and in the report, so a candidate that makes them worse is visible.
 3. **A frame's benchmark condition gates that frame** (owner, 2026-10-10).
    `ClassTarget.gating: true` turns a per-class target miss into a FAIL
-   reason. Houston (`configs/aurora/gate_F08882.yaml`): "subsiding stations:
-   |median bias| < 1, RMSE < 2 mm/yr" on `defo_area` (with the Venti area
-   DB) and `subsiding` (without it). Otherwise the frame's main signal would
-   be checked by no rule once it leaves the velocity rules.
+   reason; otherwise the frame's main signal would be checked by no rule
+   once it leaves the velocity rules. **Thresholds come from evidence**
+   (owner, 2026-10-10), not the PRD's fixed "RMSE < 2 mm/yr": the class
+   RMSE must **drop from raw to calibrated** (`rmse_must_drop_vs_raw`).
+   Raw is tied to one reference pixel, so its constant offset (the median
+   raw residual on the gated stations) is removed first; the offset and
+   raw's class metrics are recorded as `velocity_by_class_raw`. Houston
+   (`configs/aurora/gate_F08882.yaml`): |median bias| < 1 mm/yr and the
+   RMSE drop, on `defo_area` (with the Venti area DB) and `subsiding`
+   (without it).
 4. A run must pass the same deforming-area and event databases to every
    label it compares (candidate and baseline): the classes come from the
    candidate run's databases and are applied to both.
@@ -55,18 +61,20 @@ stable station. The 2018 eruption is now an event in the Venti event DB
   station is in those classes. The T38 and T46 runs so far passed none, so
   their verdicts are unchanged until they are re-validated with the Venti
   databases.
-- **Houston fails its benchmark condition today.** On the 82 subsiding
-  stations of T46 (no area DB yet):
+- **Houston before remove-restore** (T46 v0.5 run, no area DB, 82
+  subsiding stations):
 
-  | | median | RMSE | NMAD |
-  |---|---|---|---|
-  | gamma | +4.43 | 5.24 | 1.53 |
-  | v0.5 | +0.92 | 4.87 | 2.54 |
+  | | median | RMSE |
+  |---|---|---|
+  | raw, as referenced | −5.62 | 6.37 |
+  | raw, constant offset removed | +0.09 | **3.00** |
+  | gamma | +4.43 | 5.24 |
+  | v0.5 | +0.92 | 4.87 |
 
-  The bias target is met; RMSE < 2 mm/yr is not, by either candidate.
-  Part of the RMSE is the Galveston stations (issue #2, unwrapping, T62).
-  **Open owner item:** keep RMSE < 2 (Houston fails v0.5) or set the
-  condition from the evidence (e.g. RMSE no worse than gamma, or < 5).
+  Against the fair raw, both calibrations make the subsiding stations
+  worse: without remove-restore the 50 km surface takes out part of the
+  subsidence bowl, as in Central Valley. Houston v0.5 fails this rule until
+  it runs with remove-restore (T46 F08882 v05rr, running 2026-10-10).
 - T46 with remove-restore, on the gated stations (outside areas and
   events; Hawaii with the `kilauea_2018_lerz` event):
 

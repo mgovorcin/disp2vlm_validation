@@ -346,6 +346,16 @@ def run_validation(  # noqa: PLR0912, PLR0915
         sigma_insar=None,
         sigma_gnss=None,
     )
+    # raw is tied to one reference pixel: remove its constant offset (median
+    # residual on the gated stations) before comparing class RMSEs with it
+    raw_offset = float(
+        np.nanmedian(gated["pix::raw"].to_numpy() - gated["gps_los_mm_yr"].to_numpy())
+    )
+    by_class_raw = metrics_by_class(
+        common["pix::raw"].to_numpy() - raw_offset,
+        common["gps_los_mm_yr"].to_numpy(),
+        common["class"],
+    )
 
     gps_ser = gnss_los_series(daily, st, dates)
     coords = {s: (float(st.at[s, "lon"]), float(st.at[s, "lat"])) for s in st.index}
@@ -384,6 +394,7 @@ def run_validation(  # noqa: PLR0912, PLR0915
         velocity_baseline=velocity_gate["baseline"] if has_base else None,
         golden_epoch_ok=golden_ok,
         class_metrics=by_class.to_dict(orient="index"),
+        class_metrics_raw=by_class_raw.to_dict(orient="index"),
     )
     result = evaluate(gate_inputs, gate_cfg)
 
@@ -405,6 +416,10 @@ def run_validation(  # noqa: PLR0912, PLR0915
             "n_excluded": int(len(common) - len(gated)),
         },
         "velocity_by_class": by_class.reset_index().to_dict(orient="records"),
+        "velocity_by_class_raw": {
+            "offset_removed_mm_yr": raw_offset,
+            "classes": by_class_raw.reset_index().to_dict(orient="records"),
+        },
         "double_difference": {
             name: {k: v for k, v in vars(s).items() if k != "draws"}
             for name, s in dd.sills.items()
