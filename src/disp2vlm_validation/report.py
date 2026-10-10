@@ -119,7 +119,9 @@ def _bias_label(m: Mapping) -> str:
 
 
 def _check_bias_target(m: Mapping) -> tuple[str, str]:
-    b = m["velocity_los"]["calibrated"].get(_bias_key(m))
+    b = (m.get("velocity_los_gate") or m["velocity_los"])["calibrated"].get(
+        _bias_key(m)
+    )
     if b is None:
         return "n/a", "no stations"
     return ("pass" if abs(b) <= 1.0 else "note"), f"{_signed(b, 2)} mm/yr"

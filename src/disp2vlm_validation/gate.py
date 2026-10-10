@@ -47,6 +47,13 @@ class ClassTarget(BaseModel):
 
     max_abs_bias_mm_yr: float | None = None
     max_rmse_mm_yr: float | None = None
+    gating: bool = Field(
+        default=False,
+        description=(
+            "A miss FAILS the run instead of being a note: a frame's benchmark"
+            " condition (decision 0002, e.g. Houston's subsiding stations)"
+        ),
+    )
 
     model_config = {"extra": "forbid"}
 
@@ -181,18 +188,18 @@ def evaluate(inputs: GateInputs, gate: GateConfig | None = None) -> GateResult:
         m = inputs.class_metrics.get(cls)
         if not m or m.get("n", 0) == 0:
             continue
+        out = reasons if target.gating else notes
+        tag = f"{cls} (benchmark condition)" if target.gating else cls
         if (
             target.max_abs_bias_mm_yr is not None
             and abs(_bias(m, g.bias_statistic)) > target.max_abs_bias_mm_yr
         ):
-            notes.append(
-                f"{cls}: |{label}| {abs(_bias(m, g.bias_statistic)):.2f} >"
+            out.append(
+                f"{tag}: |{label}| {abs(_bias(m, g.bias_statistic)):.2f} >"
                 f" {target.max_abs_bias_mm_yr:g} mm/yr"
             )
         if target.max_rmse_mm_yr is not None and m["rmse"] > target.max_rmse_mm_yr:
-            notes.append(
-                f"{cls}: RMSE {m['rmse']:.2f} > {target.max_rmse_mm_yr:g} mm/yr"
-            )
+            out.append(f"{tag}: RMSE {m['rmse']:.2f} > {target.max_rmse_mm_yr:g} mm/yr")
     return GateResult(passed=not reasons, reasons=reasons, notes=notes, deltas=deltas)
 
 

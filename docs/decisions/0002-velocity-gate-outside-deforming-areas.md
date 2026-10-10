@@ -1,6 +1,6 @@
 # 0002. The velocity rules score the stations the calibration is responsible for
 
-- **Status:** proposed (2026-10-10), for owner review
+- **Status:** accepted (owner, 2026-10-10), with decision 3 below
 - **Changes:** `requirements.GATE.velocity_excluded_classes = ("defo_area",
   "near_event")`; the `gate.yaml` field `velocity_excluded_classes`
   (`[]` restores the all-station rule); `metrics.json` gains
@@ -39,7 +39,13 @@ stable station. The 2018 eruption is now an event in the Venti event DB
    (the sill is already a double difference on common dates).
 2. The excluded classes are still reported per class in `velocity_by_class`
    and in the report, so a candidate that makes them worse is visible.
-3. A run must pass the same deforming-area and event databases to every
+3. **A frame's benchmark condition gates that frame** (owner, 2026-10-10).
+   `ClassTarget.gating: true` turns a per-class target miss into a FAIL
+   reason. Houston (`configs/aurora/gate_F08882.yaml`): "subsiding stations:
+   |median bias| < 1, RMSE < 2 mm/yr" on `defo_area` (with the Venti area
+   DB) and `subsiding` (without it). Otherwise the frame's main signal would
+   be checked by no rule once it leaves the velocity rules.
+4. A run must pass the same deforming-area and event databases to every
    label it compares (candidate and baseline): the classes come from the
    candidate run's databases and are applied to both.
 
@@ -49,10 +55,27 @@ stable station. The 2018 eruption is now an event in the Venti event DB
   station is in those classes. The T38 and T46 runs so far passed none, so
   their verdicts are unchanged until they are re-validated with the Venti
   databases.
-- Houston (F08882): the Houston–Galveston polygon covers most subsiding
-  stations. They leave the velocity rules, but the frame's benchmark
-  condition ("subsiding stations: bias < 1, RMSE < 2 mm/yr") is a per-class
-  target and still reported. **Owner question:** should per-class targets
-  of the benchmark category gate for that frame?
+- **Houston fails its benchmark condition today.** On the 82 subsiding
+  stations of T46 (no area DB yet):
+
+  | | median | RMSE | NMAD |
+  |---|---|---|---|
+  | gamma | +4.43 | 5.24 | 1.53 |
+  | v0.5 | +0.92 | 4.87 | 2.54 |
+
+  The bias target is met; RMSE < 2 mm/yr is not, by either candidate.
+  Part of the RMSE is the Galveston stations (issue #2, unwrapping, T62).
+  **Open owner item:** keep RMSE < 2 (Houston fails v0.5) or set the
+  condition from the evidence (e.g. RMSE no worse than gamma, or < 5).
+- T46 with remove-restore, on the gated stations (outside areas and
+  events; Hawaii with the `kilauea_2018_lerz` event):
+
+  | frame | gamma median / RMSE | v0.5 + remove-restore median / RMSE | all-station verdict |
+  |---|---|---|---|
+  | F36542 Central Valley | +10.6 / 12.8 | +2.4 / 5.0 | PASS |
+  | F23211 Hawaii | +18.5 / 18.5 | +0.5 / 2.4 | FAIL (ERZ4) |
+  | F16941 Ridgecrest | +0.27 / 2.84 | +0.45 / 2.16 | FAIL (median +0.32) |
+
+  Ridgecrest's |median| rise on the gated stations is +0.18 (< 0.2).
 - Hawaii passes the velocity rules with remove-restore (table above);
   its inside-area RMSE (gamma 43, v0.5 48 mm/yr) is reported, not gated.

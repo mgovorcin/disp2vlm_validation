@@ -12,3 +12,4 @@ candidate_dir: /mnt/aurora-z0/govorcin/cal_disp_e2e/runs/F08882-v05-loclin/produ
 baseline_dir: /mnt/aurora-z0/govorcin/cal_disp_e2e/runs/7085ec9-notropo/validation
 out_dir: /mnt/aurora-z0/govorcin/cal_disp_e2e/t38/runs/F08882/v05-loclin
 workers: 6
+gate: /u/aurora-r0/govorcin/00_tools/src/disp2vlm_validation/configs/aurora/gate_F08882.yaml

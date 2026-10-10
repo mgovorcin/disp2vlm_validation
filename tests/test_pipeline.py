@@ -284,6 +284,8 @@ def test_velocity_gate_leaves_out_deforming_areas(frame, tmp_path):
     assert gate["excluded_classes"] == ["defo_area", "near_event"]
     assert gate["n_excluded"] == 1
     assert gate["calibrated"]["n"] == m["velocity_los"]["calibrated"]["n"] - 1
+    page = (frame / "runs" / "gate_defo" / "report.html").read_text()
+    assert "Stations the velocity rules use" in page and "1 left out" in page
 
     yaml_path = tmp_path / "gate.yaml"
     yaml_path.write_text("velocity_excluded_classes: []\n")

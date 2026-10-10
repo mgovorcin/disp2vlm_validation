@@ -237,6 +237,32 @@ class TestGate:
         assert any("subsiding: RMSE" in n for n in r.notes)
         assert any("release target" in n for n in r.notes)  # |bias| 1.1 > 1.0
 
+    def test_gating_class_target_fails_the_run(self):
+        """Decision 0002: a frame's benchmark condition (Houston) gates."""
+        gate = GateConfig(
+            per_class_targets={
+                "defo_area": {
+                    "max_abs_bias_mm_yr": 1.0,
+                    "max_rmse_mm_yr": 2.0,
+                    "gating": True,
+                }
+            }
+        )
+        bad = {"defo_area": {"n": 40, "bias": 0.5, "median": 0.5, "rmse": 3.1}}
+        r = evaluate(_inputs(class_metrics=bad), gate)
+        assert not r.passed
+        assert r.reasons == ["defo_area (benchmark condition): RMSE 3.10 > 2 mm/yr"]
+        good = {"defo_area": {"n": 40, "bias": 0.5, "median": 0.5, "rmse": 1.9}}
+        assert evaluate(_inputs(class_metrics=good), gate).passed
+
+    def test_houston_gate_file(self):
+        from pathlib import Path
+
+        path = Path(__file__).parents[1] / "configs" / "aurora" / "gate_F08882.yaml"
+        g = load_gate(path)
+        assert all(t.gating for t in g.per_class_targets.values())
+        assert {"defo_area", "subsiding"} <= set(g.per_class_targets)
+
     def test_gate_yaml(self, tmp_path):
         assert load_gate(None).sill_rise_max_pct == pytest.approx(5.0)
         p = tmp_path / "gate.yaml"

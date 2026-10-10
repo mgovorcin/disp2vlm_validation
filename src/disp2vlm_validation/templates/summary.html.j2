@@ -8,8 +8,8 @@
 <td>{{ f(m.double_difference.raw.sill) }} → {{ f(m.double_difference.calibrated.sill) }}</td>
 <td>{{ sg(m.sill_change_vs_raw.pct) }}%</td>
 <td>{{ (sg(m.sill_change_vs_baseline.pct) ~ '%') if m.sill_change_vs_baseline else '–' }}</td>
-<td>{{ sg(m.velocity_los.calibrated.median, 2) }}</td><td>{{ f(m.velocity_los.calibrated.rmse, 2) }}</td></tr>{% endfor %}</table>
-<p class="muted">mm/yr for velocities.</p>
+{% set v = (m.velocity_los_gate or m.velocity_los).calibrated %}<td>{{ sg(v.median, 2) }}</td><td>{{ f(v.rmse, 2) }}</td></tr>{% endfor %}</table>
+<p class="muted">mm/yr for velocities, on the stations the velocity rules use (outside deforming areas and events, decision 0002).</p>
 {% if n_pass < runs | length %}<p>FAIL reasons:</p><ul>
 {% for m in runs %}{% for r in m.verdict_reasons %}<li>{{ m.frame }}: {{ r }}</li>{% endfor %}{% endfor %}</ul>{% endif %}
 <h2>Traceability (all frames)</h2>
