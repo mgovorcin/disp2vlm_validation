@@ -93,7 +93,8 @@ def _check_velocity_vs_baseline(m: Mapping) -> tuple[str, str]:
     return (
         "fail" if failed else "pass",
         (
-            f"RMSE {_signed(d['velocity_rmse_change_mm_yr'], 2)}, |bias|"
+            f"RMSE {_signed(d['velocity_rmse_change_mm_yr'], 2)},"
+            f" |{_bias_label(m)}|"
             f" {_signed(d['velocity_abs_bias_change_mm_yr'], 2)} mm/yr"
         ),
     )
@@ -107,8 +108,18 @@ def _check_golden_epoch(m: Mapping) -> tuple[str, str]:
     return ("fail" if failed else "pass"), "cal-disp validate"
 
 
+def _bias_key(m: Mapping) -> str:
+    """Velocity-stats key of the bias the gate used (median since decision 0001)."""
+    stat = m.get("deltas", {}).get("bias_statistic", "median")
+    return "median" if stat == "median" else "bias"
+
+
+def _bias_label(m: Mapping) -> str:
+    return "median bias" if _bias_key(m) == "median" else "bias"
+
+
 def _check_bias_target(m: Mapping) -> tuple[str, str]:
-    b = m["velocity_los"]["calibrated"].get("bias")
+    b = m["velocity_los"]["calibrated"].get(_bias_key(m))
     if b is None:
         return "n/a", "no stations"
     return ("pass" if abs(b) <= 1.0 else "note"), f"{_signed(b, 2)} mm/yr"
@@ -277,7 +288,7 @@ def fig_class_rmse(by_class: pd.DataFrame, path: Path) -> pd.DataFrame:
     fig.tight_layout()
     fig.savefig(path)
     plt.close(fig)
-    return d[["n", "bias", "rmse"]].round(2)
+    return d[[c for c in ("n", "bias", "median", "rmse") if c in d]].round(2)
 
 
 # ---------------------------------------------------------------- HTML

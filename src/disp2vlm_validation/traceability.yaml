@@ -12,7 +12,7 @@
   check: sill_vs_baseline
   gating: true
 - id: GATE-3
-  requirement: "Velocity RMSE and |bias| vs MIDAS rise <= 0.2 mm/yr vs baseline (PRD 2.7)"
+  requirement: "Velocity RMSE and |median bias| vs MIDAS rise <= 0.2 mm/yr vs baseline (PRD 2.7, decision 0001)"
   metric: deltas.velocity_rmse_change_mm_yr, deltas.velocity_abs_bias_change_mm_yr
   check: velocity_vs_baseline
   gating: true
@@ -22,8 +22,8 @@
   check: golden_epoch
   gating: true
 - id: TARGET-1
-  requirement: "|bias| <= 1 mm/yr per frame (release target, PRD 2.7)"
-  metric: velocity_los.calibrated.bias
+  requirement: "|median bias| <= 1 mm/yr per frame (release target, PRD 2.7, decision 0001)"
+  metric: velocity_los.calibrated.median
   check: bias_target
   gating: false
 - id: R-V1
