@@ -53,14 +53,15 @@ Gamma → v0.5, mean / median LOS bias in mm/yr:
 | frame | mean bias | median bias |
 |---|---|---|
 | F08882 | +4.05 → +1.14 | +4.35 → +0.95 |
-| F08886 | +0.90 → +0.06 | (see `docs/baselines.md`) |
+| F08886 | +0.90 → +0.06 | +0.83 → −0.11 |
 | F16940 | +2.95 → +0.65 | +2.17 → +0.61 |
+| F08622 | +0.71 → +0.25 | +0.73 → +0.11 |
 
-- All four frames still PASS.
+- All four frames still PASS (re-run 2026-10-09).
 - **The 1 mm/yr release target is now met on all four frames**; with the
   mean, Houston missed it at +1.14.
 - **The TS-U1 unwrap run passes the gate under the median.** Its no-go stands
   on the other grounds in `studies/TS-U1/REPORT.md`, and the correction
   stays off.
-- **Stable stations reappear** on Oklahoma City and Houston. Class tables in
-  the reports change.
+- **Stable stations reappear:** Houston 24, Oklahoma City 24, Los Angeles
+  209, New York 39. Class tables in the reports change.

@@ -61,8 +61,45 @@ Summary page: `t38/release_summary_v05.html`. Calibration took 27 min per
 | F16940 LA | 268 (234) | 472.0 → 200.2 → 56.5 | −71.8% [−74.8, −68.1] | +2.95 / 11.07 → +0.65 / 4.13 |
 | F08622 NYC | 89 (65) | 327.5 → 145.9 → 45.9 | −68.5% [−72.0, −65.2] | +0.71 / 1.53 → +0.25 / 1.23 |
 
-Release target |bias| ≤ 1 mm/yr: met on three frames. F08882 is at +1.14;
-this is reported, not gating. See the bias issue (T38.4).
+Release target |bias| ≤ 1 mm/yr: met on three frames by the mean; F08882 is
+at +1.14 (reported, not gating). See the bias issue (T38.4).
+
+### Under decision 0001 (median bias, sea-only coastal), re-run 2026-10-09
+
+| frame | verdict | median LOS bias gamma → v0.5 (mm/yr) | stations per class | stable stations: median bias / RMSE |
+|---|---|---|---|---|
+| F08882 Houston | PASS | +4.35 → **+0.95** | subsiding 82, coastal 20, stable 24 | **+3.12** / 5.08 |
+| F08886 OKC | PASS | +0.83 → −0.11 | stable 24 | −0.11 / 1.36 |
+| F16940 LA | PASS | +2.17 → +0.61 | subsiding 19, coastal 40, stable 209 | +0.32 / 1.72 |
+| F08622 NYC | PASS | +0.73 → +0.11 | subsiding 2, coastal 48, stable 39 | +0.38 / 1.30 |
+
+- **The release target (|median bias| ≤ 1 mm/yr) is met on all four
+  frames.**
+- **The class rule now leaves stable stations everywhere.** Before, OKC had
+  only "coastal" stations, from its ponds and reservoirs.
+- **Houston's stable stations show the frame's positive bias plainly**
+  (issue #2). The frame-wide median is close to zero because the 82
+  subsiding stations dominate it.
+- **The TS-U1 unwrap run now passes the gate.** Its median bias is unchanged
+  at +0.95; the no-go stands on the other grounds.
+
+### Spread of the station residuals (NMAD), v0.5 vs gamma
+
+On F08882 the NMAD of the velocity residuals rises from 1.29–1.51 (gamma) to
+2.7–2.9 mm/yr (v0.5), while RMSE and median bias fall.
+
+- **It is not the GNSS grid.** The change at each station does not
+  correlate with the grid-minus-station error from TS-G1 (r = −0.01).
+- **Within reference blocks, v0.5 is better.** The per-station scatter of
+  the within-block rates drops from 7.5 to 4.2 mm/yr.
+- **The chained velocity spreads more.** Each block's last-epoch surface
+  error, at ~50 km scale and mostly atmosphere, is carried into every later
+  epoch. Gamma's frame-wide plane carries only a near-constant, which ends
+  up in the bias, not the spread.
+
+This concerns how a velocity (VLM) is built from chained per-pair
+DISP-CAL products, not the per-pair product. It is tracked in
+disp2vlm_validation issue #3.
 
 ### Differences > 10% from the trade-study two-pass runs (T38.3)
 
