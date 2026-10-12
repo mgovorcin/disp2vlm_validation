@@ -16,8 +16,10 @@ stacks, streaming velocity fit), `gnss.py` (UNR + MIDAS, frozen per frame;
 station sampler, held-out split), `metrics.py` (DD sill with paired bootstrap,
 velocity stats), `classes.py` (station classes, per-class metrics, σ realism),
 `gate.py` (`gate.yaml`, `evaluate`, golden-epoch check), `pipeline.py` (one
-frame run, `RunConfig`, caches), `report.py` + `templates/` (HTML, SVG,
-traceability from `traceability.yaml`), `cli.py` (`gate`, `run`, `summary`).
+frame run, `RunConfig`, caches), `vlm.py` (VLM products vs GNSS: pair
+residuals, station rates, σ realism, `VLM_GATE`; `vlm.yaml`), `report.py` +
+`templates/` (HTML, SVG, traceability from `traceability.yaml`), `cli.py`
+(`gate`, `run`, `vlm`, `summary`).
 `studies/` holds one-off analyses (e.g. `bias_by_block.py`), each with a test.
 Baselines and the T38 comparison: `docs/baselines.md`.
 

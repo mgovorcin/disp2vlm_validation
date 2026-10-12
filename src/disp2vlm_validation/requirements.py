@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-__all__ = ["BENCHMARK_FRAMES", "GATE", "GateThresholds"]
+__all__ = ["BENCHMARK_FRAMES", "GATE", "VLM_GATE", "GateThresholds", "VlmGate"]
 
 
 @dataclass(frozen=True)
@@ -56,6 +56,34 @@ class GateThresholds:
 
 
 GATE = GateThresholds()
+
+
+@dataclass(frozen=True)
+class VlmGate:
+    """VLM gate on per-station vertical rates vs GNSS up (decision 0003, proposed).
+
+    Owner target (2026-10-11): VLM vertical rate within 1-2 mm/yr of GNSS.
+    Gated stations: both looks (mode 1), outside deforming areas and event
+    footprints (decision 0002). RMSE is reported, not gated: a handful of
+    local sites (landslides, wells, coast) dominate it. Baseline: LA
+    (F16940 + F18904, 2016-2023), 172 stations: median -0.49, NMAD 1.47,
+    RMSE 2.77 (1.67 without 6 outliers) mm/yr.
+
+    Attributes
+    ----------
+    rate_abs_median_max_mm_yr, rate_nmad_max_mm_yr : float
+        Limits on |median| and NMAD of (VLM rate - GNSS up rate).
+    min_stations : int
+        Fewer gated stations than this: not assessed (FAIL with that reason).
+
+    """
+
+    rate_abs_median_max_mm_yr: float = 1.0
+    rate_nmad_max_mm_yr: float = 2.0
+    min_stations: int = 20
+
+
+VLM_GATE = VlmGate()
 
 # PRD section 2.7: the 8-frame CalVal v0.5 benchmark. Frames 5-8 are TBD
 # (plan T40); the condition is the category-specific check on top of the gate.

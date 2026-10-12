@@ -4,7 +4,8 @@
 """``disp2vlm-validate`` command line.
 
 ``gate`` prints the release gate and the benchmark frames; ``run`` validates
-one candidate on one frame (``run.yaml``, see `pipeline.RunConfig`);
+one candidate on one frame (``run.yaml``, see `pipeline.RunConfig`); ``vlm``
+validates a VLM run against GNSS (``vlm.yaml``, see `vlm.VlmRunConfig`);
 ``summary`` gathers frame runs into ``release_summary.html``.
 """
 
@@ -62,6 +63,32 @@ def run(config: Path, no_cache: bool = False, verbose: bool = False) -> None:
         print(f"  - {r}")
 
 
+def vlm(config: Path, verbose: bool = False) -> None:
+    """Validate one VLM run against independent GNSS (``vlm.yaml``).
+
+    See `disp2vlm_validation.vlm.VlmRunConfig` for the fields.
+    """
+    import yaml
+
+    from .vlm import VlmRunConfig, run_vlm
+
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+    cfg = VlmRunConfig(**yaml.safe_load(Path(config).read_text()))
+    m = run_vlm(cfg)
+    s = m["vertical_rate"]["gated_both_looks"]
+    print(
+        f"{m['frame']} {m['label']}: {m['verdict']} (n={s.get('n')}, median"
+        f" {s.get('median', float('nan')):+.2f}, NMAD"
+        f" {s.get('nmad', float('nan')):.2f}, RMSE {s.get('rmse', float('nan')):.2f}"
+        " mm/yr)"
+    )
+    for r in m["verdict_reasons"]:
+        print(f"  - {r}")
+
+
 def summary(
     runs: list[Path],
     /,
@@ -81,7 +108,8 @@ def summary(
 def main() -> None:
     """Entry point."""
     tyro.extras.subcommand_cli_from_dict(
-        {"gate": gate, "run": run, "summary": summary}, description=__doc__
+        {"gate": gate, "run": run, "vlm": vlm, "summary": summary},
+        description=__doc__,
     )
 
 
