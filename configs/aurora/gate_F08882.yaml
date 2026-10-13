@@ -4,6 +4,11 @@
 # here. Owner 2026-10-10: thresholds from evidence, not a fixed RMSE < 2:
 # |median bias| < 1 mm/yr and the RMSE must drop from raw to calibrated
 # (raw with its constant offset removed).
+# Amendment (owner 2026-10-13): the calibration may not add error beyond its
+# GNSS reference, so the RMSE limit is sqrt(raw^2 + reference^2).
+# reference_rmse_mm_yr = UNR grid LOS rate vs MIDAS, per class, from TS-G1
+# (studies/TS-G1, F08882 stations_ts_g1.csv, classes of the T46 run): the
+# validator never reads the grid itself.
 per_class_targets:
-  defo_area: {max_abs_bias_mm_yr: 1.0, rmse_must_drop_vs_raw: true, gating: true}
-  subsiding: {max_abs_bias_mm_yr: 1.0, rmse_must_drop_vs_raw: true, gating: true}
+  defo_area: {max_abs_bias_mm_yr: 1.0, rmse_must_drop_vs_raw: true, reference_rmse_mm_yr: 1.82, gating: true}
+  subsiding: {max_abs_bias_mm_yr: 1.0, rmse_must_drop_vs_raw: true, reference_rmse_mm_yr: 4.23, gating: true}

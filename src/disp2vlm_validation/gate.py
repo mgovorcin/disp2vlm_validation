@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+import numpy as np
 import yaml
 from pydantic import BaseModel, Field
 
@@ -52,6 +53,17 @@ class ClassTarget(BaseModel):
         description=(
             "The class RMSE must be below raw's, raw with its constant offset"
             " removed (decision 0002): the calibration must improve on DISP there"
+        ),
+    )
+    reference_rmse_mm_yr: float | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "With rmse_must_drop_vs_raw: the accuracy of the GNSS reference for this"
+            " class (grid vs stations, from the TS-G1 study; the validator never"
+            " reads the grid). The calibrated RMSE may then reach"
+            " sqrt(raw^2 + reference^2): the calibration adds no error beyond its"
+            " reference (decision 0002 amendment, 2026-10-13)"
         ),
     )
     gating: bool = Field(
@@ -151,10 +163,16 @@ def _class_target_misses(
     if target.max_rmse_mm_yr is not None and m["rmse"] > target.max_rmse_mm_yr:
         out.append(f"RMSE {m['rmse']:.2f} > {target.max_rmse_mm_yr:g} mm/yr")
     if target.rmse_must_drop_vs_raw and raw and raw.get("n", 0):
-        if m["rmse"] >= raw["rmse"]:
+        ref = target.reference_rmse_mm_yr
+        if ref is None and m["rmse"] >= raw["rmse"]:
             out.append(
                 f"RMSE {m['rmse']:.2f} not below raw {raw['rmse']:.2f} mm/yr"
                 " (offset removed)"
+            )
+        elif ref is not None and m["rmse"] > float(np.hypot(raw["rmse"], ref)):
+            out.append(
+                f"RMSE {m['rmse']:.2f} above sqrt(raw {raw['rmse']:.2f}^2 + reference"
+                f" {ref:.2f}^2) = {float(np.hypot(raw['rmse'], ref)):.2f} mm/yr"
             )
     return out
 
