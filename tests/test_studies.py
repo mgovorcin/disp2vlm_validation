@@ -176,3 +176,38 @@ def test_ts_u1_scores_block_errors_and_decoys():
     assert bs["error_blocks"] == 1 and bs["shifted_blocks"] == 1
     assert bs["precision"] == 1.0 and bs["recall"] == 1.0
     assert set(blocks["true_error"].dropna()) == {0.0, 1.0}
+
+
+def test_ts_e4_realism_pairs_and_sigma_sampling(tmp_path):
+    """TS-E4 building blocks: pair differences, GNSS medians, the window
+    sigma, product sigma sampling, and the R-E4 realism verdict."""
+    import h5py
+
+    ts = _load("ts_e4")
+    dates = pd.date_range("2020-01-01", periods=5, freq="12D")
+    series = pd.DataFrame({"A": [0.0, 1.0, 3.0, 6.0, 10.0]}, index=dates)
+    pairs = [(dates[0], dates[2]), (dates[2], dates[4])]
+    tab = ts.pair_table(series, pairs)
+    np.testing.assert_allclose(tab["A"], [3.0, 7.0])
+
+    days = pd.date_range("2019-12-20", "2020-03-01", freq="D")
+    wide = pd.DataFrame({"A": np.arange(days.size, dtype=float)}, index=days)
+    g = ts.gnss_pair_table(wide, pairs)
+    np.testing.assert_allclose(g["A"], [24.0, 24.0])  # 1 mm/day over 24 days
+
+    s = ts.sigma_gnss_pair(pd.Series({"A": 2.0}))
+    assert s["A"] == pytest.approx(2.0 * 1.2533 * np.sqrt(2 / 7))
+
+    path = tmp_path / "cal.nc"
+    with h5py.File(path, "w") as f:
+        f["calibration_std"] = np.full((1, 10, 10), 0.004, np.float32)
+    st = pd.DataFrame({"row": [5], "col": [0]}, index=["A"])
+    out = ts.sample_std({(dates[0], dates[2]): path}, st)
+    assert out.iloc[0]["A"] == pytest.approx(4.0)  # mm, edge window clipped
+
+    rng = np.random.default_rng(8)
+    good = ts.realism(rng.normal(0, 1, 20000))
+    assert good["meets_R_E4"] and good["coverage95"] == pytest.approx(0.95, abs=0.01)
+    bad = ts.realism(rng.normal(0, 1.6, 20000))
+    assert not bad["meets_R_E4"] and bad["robust_std_z"] > 1.5
+    assert ts.realism(np.array([np.nan]))["n"] == 0
