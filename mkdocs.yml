@@ -6,6 +6,7 @@ nav:
   - Home: index.md
   - Scope: scope.md
   - Baselines: baselines.md
+  - v0.5 CalVal report: vnv/v0.5-calval-report.md
   - API: api.md
 plugins:
   - search
