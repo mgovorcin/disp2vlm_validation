@@ -1,0 +1,9 @@
+# Houston (F08882): the benchmark condition gates this frame (decision 0002).
+# With the Venti area DB most subsiding stations are in the Houston-Galveston
+# polygon (class defo_area) and leave the velocity rules; they are checked
+# here. Owner 2026-10-10: thresholds from evidence, not a fixed RMSE < 2:
+# |median bias| < 1 mm/yr and the RMSE must drop from raw to calibrated
+# (raw with its constant offset removed).
+per_class_targets:
+  defo_area: {max_abs_bias_mm_yr: 1.0, rmse_must_drop_vs_raw: true, gating: true}
+  subsiding: {max_abs_bias_mm_yr: 1.0, rmse_must_drop_vs_raw: true, gating: true}

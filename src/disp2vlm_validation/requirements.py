@@ -41,6 +41,11 @@ class GateThresholds:
         the same bias statistic.
     bootstrap_ci : float
         Confidence level of the station-bootstrap intervals.
+    velocity_excluded_classes : tuple of str
+        Station classes left out of the velocity rules (decision 0002): the
+        deforming areas and event footprints are restored, not calibrated,
+        so they are reported per class instead of gating the calibration.
+        Empty restores the all-station rule.
 
     """
 
@@ -52,6 +57,7 @@ class GateThresholds:
     bias_statistic: str = "median"
     target_abs_bias_mm_yr: float = 1.0
     bootstrap_ci: float = 0.95
+    velocity_excluded_classes: tuple[str, ...] = ("defo_area", "near_event")
     independent_gnss_only: bool = field(default=True, init=False)
 
 

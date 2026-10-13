@@ -47,6 +47,20 @@ class ClassTarget(BaseModel):
 
     max_abs_bias_mm_yr: float | None = None
     max_rmse_mm_yr: float | None = None
+    rmse_must_drop_vs_raw: bool = Field(
+        default=False,
+        description=(
+            "The class RMSE must be below raw's, raw with its constant offset"
+            " removed (decision 0002): the calibration must improve on DISP there"
+        ),
+    )
+    gating: bool = Field(
+        default=False,
+        description=(
+            "A miss FAILS the run instead of being a note: a frame's benchmark"
+            " condition (decision 0002, e.g. Houston's subsiding stations)"
+        ),
+    )
 
     model_config = {"extra": "forbid"}
 
@@ -62,6 +76,10 @@ class GateConfig(BaseModel):
     bias_statistic: Literal["median", "mean"] = GATE.bias_statistic  # type: ignore[assignment]
     target_abs_bias_mm_yr: float = GATE.target_abs_bias_mm_yr
     significance_ci: float = GATE.bootstrap_ci
+    velocity_excluded_classes: list[str] = Field(
+        default_factory=lambda: list(GATE.velocity_excluded_classes),
+        description="Station classes left out of the velocity rules (decision 0002)",
+    )
     per_class_targets: dict[str, ClassTarget] = Field(default_factory=dict)
 
     model_config = {"extra": "forbid"}
@@ -91,6 +109,7 @@ class GateInputs:
     velocity_baseline: dict[str, float] | None = None
     golden_epoch_ok: bool | None = None
     class_metrics: dict[str, dict[str, float]] = field(default_factory=dict)
+    class_metrics_raw: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 @dataclass
@@ -115,6 +134,29 @@ def _bias(stats: dict[str, Any], statistic: str) -> float:
         msg = f"bias_statistic={statistic!r} needs {key!r} in the velocity stats"
         raise KeyError(msg)
     return float(stats[key])
+
+
+def _class_target_misses(
+    target: ClassTarget,
+    m: dict[str, float],
+    raw: dict[str, float] | None,
+    statistic: str,
+    label: str,
+) -> list[str]:
+    """Return what one class misses of its target (empty when it meets it)."""
+    out = []
+    bias = abs(_bias(m, statistic))
+    if target.max_abs_bias_mm_yr is not None and bias > target.max_abs_bias_mm_yr:
+        out.append(f"|{label}| {bias:.2f} > {target.max_abs_bias_mm_yr:g} mm/yr")
+    if target.max_rmse_mm_yr is not None and m["rmse"] > target.max_rmse_mm_yr:
+        out.append(f"RMSE {m['rmse']:.2f} > {target.max_rmse_mm_yr:g} mm/yr")
+    if target.rmse_must_drop_vs_raw and raw and raw.get("n", 0):
+        if m["rmse"] >= raw["rmse"]:
+            out.append(
+                f"RMSE {m['rmse']:.2f} not below raw {raw['rmse']:.2f} mm/yr"
+                " (offset removed)"
+            )
+    return out
 
 
 def evaluate(inputs: GateInputs, gate: GateConfig | None = None) -> GateResult:
@@ -177,18 +219,11 @@ def evaluate(inputs: GateInputs, gate: GateConfig | None = None) -> GateResult:
         m = inputs.class_metrics.get(cls)
         if not m or m.get("n", 0) == 0:
             continue
-        if (
-            target.max_abs_bias_mm_yr is not None
-            and abs(_bias(m, g.bias_statistic)) > target.max_abs_bias_mm_yr
-        ):
-            notes.append(
-                f"{cls}: |{label}| {abs(_bias(m, g.bias_statistic)):.2f} >"
-                f" {target.max_abs_bias_mm_yr:g} mm/yr"
-            )
-        if target.max_rmse_mm_yr is not None and m["rmse"] > target.max_rmse_mm_yr:
-            notes.append(
-                f"{cls}: RMSE {m['rmse']:.2f} > {target.max_rmse_mm_yr:g} mm/yr"
-            )
+        misses = _class_target_misses(
+            target, m, inputs.class_metrics_raw.get(cls), g.bias_statistic, label
+        )
+        tag = f"{cls} (benchmark condition)" if target.gating else cls
+        (reasons if target.gating else notes).extend(f"{tag}: {x}" for x in misses)
     return GateResult(passed=not reasons, reasons=reasons, notes=notes, deltas=deltas)
 
 

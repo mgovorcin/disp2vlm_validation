@@ -329,12 +329,32 @@ def run_validation(  # noqa: PLR0912, PLR0915
         )
         for name in variants
     }
+    # the velocity rules see only what the calibration is responsible for
+    gate_cfg = load_gate(cfg.gate)
+    excluded_classes = set(gate_cfg.velocity_excluded_classes)
+    gated = common[~common["class"].isin(excluded_classes)]
+    velocity_gate = {
+        name: velocity_stats(
+            gated[f"pix::{name}"].to_numpy(), gated["gps_los_mm_yr"].to_numpy()
+        )
+        for name in variants
+    }
     by_class = metrics_by_class(
         common["pix::calibrated"].to_numpy(),
         common["gps_los_mm_yr"].to_numpy(),
         common["class"],
         sigma_insar=None,
         sigma_gnss=None,
+    )
+    # raw is tied to one reference pixel: remove its constant offset (median
+    # residual on the gated stations) before comparing class RMSEs with it
+    raw_offset = float(
+        np.nanmedian(gated["pix::raw"].to_numpy() - gated["gps_los_mm_yr"].to_numpy())
+    )
+    by_class_raw = metrics_by_class(
+        common["pix::raw"].to_numpy() - raw_offset,
+        common["gps_los_mm_yr"].to_numpy(),
+        common["class"],
     )
 
     gps_ser = gnss_los_series(daily, st, dates)
@@ -366,16 +386,17 @@ def run_validation(  # noqa: PLR0912, PLR0915
     gate_inputs = GateInputs(
         sill_candidate=dd.sills["calibrated"].sill,
         sill_raw=dd.sills["raw"].sill,
-        velocity_candidate=velocity["calibrated"],
+        velocity_candidate=velocity_gate["calibrated"],
         sill_baseline=dd.sills["baseline"].sill if has_base else None,
         sill_change_vs_baseline_ci=(
             dd.change_pct("calibrated", "baseline")[1] if has_base else None
         ),
-        velocity_baseline=velocity["baseline"] if has_base else None,
+        velocity_baseline=velocity_gate["baseline"] if has_base else None,
         golden_epoch_ok=golden_ok,
         class_metrics=by_class.to_dict(orient="index"),
+        class_metrics_raw=by_class_raw.to_dict(orient="index"),
     )
-    result = evaluate(gate_inputs, load_gate(cfg.gate))
+    result = evaluate(gate_inputs, gate_cfg)
 
     metrics: dict[str, Any] = {
         "label": cfg.label,
@@ -389,7 +410,16 @@ def run_validation(  # noqa: PLR0912, PLR0915
         "excluded_stations": split.excluded,
         "held_out_stations": split.held_out,
         "velocity_los": velocity,
+        "velocity_los_gate": {
+            **velocity_gate,
+            "excluded_classes": sorted(excluded_classes),
+            "n_excluded": int(len(common) - len(gated)),
+        },
         "velocity_by_class": by_class.reset_index().to_dict(orient="records"),
+        "velocity_by_class_raw": {
+            "offset_removed_mm_yr": raw_offset,
+            "classes": by_class_raw.reset_index().to_dict(orient="records"),
+        },
         "double_difference": {
             name: {k: v for k, v in vars(s).items() if k != "draws"}
             for name, s in dd.sills.items()

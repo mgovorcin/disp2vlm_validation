@@ -244,3 +244,55 @@ def test_cli_run_and_summary(frame, tmp_path, monkeypatch, capsys):
     )
     main()
     assert out.exists() and "PASS" in capsys.readouterr().out
+
+
+def test_velocity_gate_leaves_out_deforming_areas(frame, tmp_path):
+    """Decision 0002: stations in a deforming area are reported, not gated."""
+    midas = pd.read_csv(frame / "cache" / "gnss_midas_enu.csv", index_col=0)
+    lon, lat = midas.loc["G000", ["lon", "lat"]]
+    d = 0.01
+    ring = [
+        [lon - d, lat - d],
+        [lon + d, lat - d],
+        [lon + d, lat + d],
+        [lon - d, lat + d],
+    ]
+    defo = tmp_path / "defo.geojson"
+    defo.write_text(
+        json.dumps(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": {"id": "a"},
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [ring + ring[:1]],
+                        },
+                    }
+                ],
+            }
+        )
+    )
+    cfg = _cfg(frame, "perfect", "gate_defo")
+    cfg = cfg.model_copy(
+        update={"frame": cfg.frame.model_copy(update={"defo_geojson": defo})}
+    )
+    m = run_validation(cfg)
+    gate = m["velocity_los_gate"]
+    assert gate["excluded_classes"] == ["defo_area", "near_event"]
+    assert gate["n_excluded"] == 1
+    assert gate["calibrated"]["n"] == m["velocity_los"]["calibrated"]["n"] - 1
+    raw = m["velocity_by_class_raw"]
+    assert np.isfinite(raw["offset_removed_mm_yr"])
+    assert {r["class"] for r in raw["classes"]} >= {"defo_area", "all"}
+    page = (frame / "runs" / "gate_defo" / "report.html").read_text()
+    assert "Stations the velocity rules use" in page and "1 left out" in page
+
+    yaml_path = tmp_path / "gate.yaml"
+    yaml_path.write_text("velocity_excluded_classes: []\n")
+    m_all = run_validation(
+        cfg.model_copy(update={"gate": yaml_path, "out_dir": tmp_path / "all"})
+    )
+    assert m_all["velocity_los_gate"]["n_excluded"] == 0
