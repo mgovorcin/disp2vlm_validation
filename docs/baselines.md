@@ -124,3 +124,62 @@ v0.5; part of TS-U1" (PRD risk table). Every gap traces to that.
 Consequence for TS-U1: per-region offsets are worth −35 to −40% of the DD
 sill on coastal frames with many water-separated regions (NYC, Houston), and
 they fix island stations (LA).
+
+## The benchmark gate on 10 frames (Venti T46, 2026-10-12)
+
+cal-disp v0.5 (loclin 50 km two-pass, coh^8 + robust, k = 3.9, tropo off,
+unwrap off, 50 km GNSS grid buffer) against gamma (Venti 600 km plane) on
+the 8 PRD frames plus Houston descending (F38238, the VLM pair) and the
+first three T38 frames. Gate under decision 0002: velocity rules on the
+stations outside deforming areas and event footprints (Venti DB
+`1.0-draft`, venti-dev `f96bb19`: Houston-Galveston, San Joaquin, Kern N/S,
+Kīlauea; Ridgecrest Mw 7.1 / 6.4, Kīlauea 2018 LERZ); Houston's benchmark
+condition gates F08882 (`configs/aurora/gate_F08882.yaml`). "+ RR" is
+v0.5 with remove-restore (cal-disp `_remove_restore_valid`, same DBs).
+
+| frame | run | verdict | DD sill, change vs gamma | gated v0.5: median / RMSE | gated gamma: median / RMSE |
+|---|---|---|---|---|---|
+| F08886 Oklahoma City | v0.5 | PASS | 35 (−81%) | −0.11 / 1.37 | +0.83 / 1.79 |
+| F16940 Los Angeles | v0.5 | PASS | 56 (−72%) | +0.64 / 4.13 | +2.17 / 11.07 |
+| F08622 New York | v0.5 | PASS | 46 (−69%) | +0.11 / 1.23 | +0.73 / 1.53 |
+| F07081 Montana | v0.5 | PASS | 23 (−64%) | +0.97 / 1.79 | +1.96 / 2.54 |
+| F36542 Central Valley | v0.5 + RR | PASS | 103 (−69%) | +2.42 / 5.04 | +10.61 / 12.80 |
+| F16941 Ridgecrest | v0.5 + RR | PASS | 65 (−68%) | +0.45 / 2.16 | +0.27 / 2.84 |
+| F23211 Hawaii | v0.5 + RR | PASS | 425 (−42%) | +0.48 / 2.41 | +18.46 / 18.46 |
+| F35991 Puerto Rico | v0.5 | PASS | 187 (−81%) | +0.51 / 3.71 | +6.51 / 8.68 |
+| F38238 Houston desc | v0.5 | PASS | 71 (−53%) | +2.47 / 4.87 | +7.01 / 7.14 |
+| F08882 Houston | v0.5 + RR | **FAIL** | 114 (−56%) | +0.82 / 5.90 | +4.22 / 5.51 |
+
+Velocities in mm/yr (LOS rate − MIDAS). Runs: `cal_disp_e2e/t46/runs/<F>/{v05b,v05rr}_db`,
+table `t46/summary_db.md`.
+
+- **v0.5 + remove-restore passes 9 of 10.** The DD sill drops 42–81% from
+  gamma on every frame; the median bias drops on every frame but
+  Ridgecrest (+0.45 vs +0.27, inside the 0.2 rise limit with RR; plain
+  v0.5 misses it by 0.03).
+- **Remove-restore** turns Central Valley from FAIL (all-station RMSE 24 vs
+  17) to PASS and lowers the in-area residuals (CV in-polygon median +32.6
+  → +8.9 mm/yr); on Ridgecrest it keeps the coseismic signal out of the
+  fit for spanning pairs.
+- **Hawaii's** ~130 mm/yr all-station RMSE was one co-eruptive station
+  (ERZ4, 2018 LERZ); with the event in the DB, 75 of 93 stations are in an
+  area or footprint and the 18 outside give +0.48 / 2.41 against gamma's
+  +18.5 / 18.5.
+- **Houston fails** on three counts: the gated RMSE rises +0.39 (Galveston
+  and Matagorda coast); the subsiding area (benchmark condition) has RMSE
+  2.42 against the offset-removed raw 1.74; and the subsiding class outside
+  it 7.30 against 4.43. Galveston is a disconnected region with
+  whole-cycle jumps in ~24% of raw pairs that the 50 km surface partly
+  absorbs (T62; the trade study's free per-region offsets fixed these
+  stations, see above). Unwrap correction on: gated RMSE 5.90 → 5.19
+  (better than gamma), but incomplete; it stays off. Edge case for the
+  final refinement pass.
+
+### Good environments and VLM (T56, T57)
+
+On benign frames the chained per-pair DISP-CAL velocity is within 1–2 mm/yr
+of MIDAS (NMAD: NYC 0.87, OKC 1.47, Montana asc F40308 0.45, LA desc F18904
+1.45) and *lowers* the scatter of raw DISP. VLM on LA (F16940 + F18904,
+2016–2023, `disp2vlm-validate vlm`): 172 both-look stations, vertical rate
+− GNSS up median −0.42, NMAD 1.44, RMSE 2.67 (1.67 without six local
+sites), 80% within 2 mm/yr: PASS (decision 0003, proposed).
