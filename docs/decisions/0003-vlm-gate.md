@@ -1,6 +1,6 @@
 # 0003. VLM gate: per-station vertical rates vs GNSS up
 
-- **Status:** proposed (2026-10-12), thresholds from the owner's target
+- **Status:** accepted (owner, 2026-10-13): median and NMAD gate, RMSE reported
 - **Changes:** `requirements.VLM_GATE` (`rate_abs_median_max_mm_yr = 1.0`,
   `rate_nmad_max_mm_yr = 2.0`, `min_stations = 20`); `disp2vlm-validate vlm`.
 
@@ -35,5 +35,5 @@ First real runs (Venti plan T56.1, `cal_disp_e2e/t56`, `t57`):
 
 LA passes; Houston fails on NMAD (edge case, final refinement pass); NYC is
 not assessed in the both-looks class (its descending stack has a gap).
-**Owner question:** gate RMSE too (e.g. ≤ 2 mm/yr after a documented
-outlier rule), or keep it reported?
+RMSE stays reported, not gated (owner, 2026-10-13). A handful of local sites
+set it, and an outlier rule would itself need a decision.

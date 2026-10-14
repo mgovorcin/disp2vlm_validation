@@ -87,3 +87,32 @@ stable station. The 2018 eruption is now an event in the Venti event DB
   Ridgecrest's |median| rise on the gated stations is +0.18 (< 0.2).
 - Hawaii passes the velocity rules with remove-restore (table above);
   its inside-area RMSE (gamma 43, v0.5 48 mm/yr) is reported, not gated.
+
+## Amendment (owner, 2026-10-13): the RMSE limit includes the GNSS reference error
+
+**Problem.** Inside Houston's subsidence polygon, raw DISP with one offset
+removed fits MIDAS at 1.74 mm/yr. The offset is fitted on the validation
+stations themselves, so raw gets help the product cannot have. InSAR's
+*relative* precision there is better than the absolute GNSS reference the
+calibration ties to: the UNR grid vs MIDAS is 1.82 mm/yr in that class
+(TS-G1, F08882). The calibrated RMSE, 2.42, matches
+√(1.74² + 1.82²) = 2.52. "Below raw" cannot be met there by any surface
+setting.
+
+**Decision.** A class target may carry `reference_rmse_mm_yr`, the grid vs
+station RMSE of that class taken from the TS-G1 study. The rule is then
+RMSE ≤ √(raw² + reference²): the calibration adds no error beyond its
+reference. The validator still never reads the grid; the number is a
+documented study result in the frame's gate file.
+
+**Houston** (`configs/aurora/gate_F08882.yaml`): defo_area 1.82 and
+subsiding 4.23 mm/yr.
+
+| run | defo_area | subsiding |
+|---|---|---|
+| v0.5 + RR | 2.42 ≤ 2.52 ✓ | 7.30 > 6.13 ✗ |
+| v0.5 + RR + regions (venti-dev #32) | 2.42 ≤ 2.52 ✓ | 6.28 > 6.13 ✗ (by 0.15) |
+
+The subsiding class outside the polygon still misses. The cause is
+Galveston's TXGA (a sub-region cycle error) and Matagorda, both items for
+the edge-case pass.

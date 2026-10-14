@@ -66,7 +66,7 @@ GATE = GateThresholds()
 
 @dataclass(frozen=True)
 class VlmGate:
-    """VLM gate on per-station vertical rates vs GNSS up (decision 0003, proposed).
+    """VLM gate on per-station vertical rates vs GNSS up (decision 0003, accepted).
 
     Owner target (2026-10-11): VLM vertical rate within 1-2 mm/yr of GNSS.
     Gated stations: both looks (mode 1), outside deforming areas and event

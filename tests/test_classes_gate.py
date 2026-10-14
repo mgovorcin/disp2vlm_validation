@@ -275,6 +275,24 @@ class TestGate:
         # no raw metrics for the class: nothing to compare
         assert evaluate(_inputs(class_metrics=cal), gate).passed
 
+    def test_rmse_limit_includes_the_reference_error(self):
+        """Decision 0002 amendment: RMSE <= sqrt(raw^2 + reference^2)."""
+        target = {
+            "rmse_must_drop_vs_raw": True,
+            "reference_rmse_mm_yr": 1.82,
+            "gating": True,
+        }
+        gate = GateConfig(per_class_targets={"defo_area": target})
+        raw = {"defo_area": {"n": 56, "bias": 0.4, "median": 0.4, "rmse": 1.74}}
+        ok = {"defo_area": {"n": 56, "bias": 0.8, "median": 0.8, "rmse": 2.42}}
+        bad = {"defo_area": {"n": 56, "bias": 0.8, "median": 0.8, "rmse": 2.60}}
+        assert evaluate(_inputs(class_metrics=ok, class_metrics_raw=raw), gate).passed
+        r = evaluate(_inputs(class_metrics=bad, class_metrics_raw=raw), gate)
+        assert (
+            not r.passed
+            and "sqrt(raw 1.74^2 + reference 1.82^2) = 2.52" in r.reasons[0]
+        )
+
     def test_houston_gate_file(self):
         from pathlib import Path
 
@@ -283,6 +301,7 @@ class TestGate:
         assert all(t.gating for t in g.per_class_targets.values())
         assert all(t.rmse_must_drop_vs_raw for t in g.per_class_targets.values())
         assert all(t.max_rmse_mm_yr is None for t in g.per_class_targets.values())
+        assert all(t.reference_rmse_mm_yr for t in g.per_class_targets.values())
         assert {"defo_area", "subsiding"} <= set(g.per_class_targets)
 
     def test_gate_yaml(self, tmp_path):
