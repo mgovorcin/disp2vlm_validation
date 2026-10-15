@@ -1,20 +1,71 @@
 site_name: disp2vlm_validation
+site_description: Independent GNSS validation of OPERA DISP-CAL and VLM products
+site_url: https://mgovorcin.github.io/disp2vlm_validation/
 repo_url: https://github.com/mgovorcin/disp2vlm_validation
+repo_name: mgovorcin/disp2vlm_validation
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 California Institute of Technology. Apache-2.0.
+
 theme:
   name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: {icon: material/brightness-7, name: Dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: {icon: material/brightness-4, name: Light mode}
+
 nav:
   - Home: index.md
-  - Scope: scope.md
-  - Baselines: baselines.md
-  - v0.5 CalVal report: vnv/v0.5-calval-report.md
-  - API: api.md
+  - Getting started:
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+  - Tutorials:
+      - tutorials/index.md
+      - 1. Validate a calibration: tutorials/01-demo-frame.md
+      - 2. Baseline and gate: tutorials/02-baseline-and-gate.md
+      - 3. A real OPERA frame: tutorials/03-real-frame.md
+      - 4. VLM products: tutorials/04-vlm.md
+      - 5. Release summary: tutorials/05-release-summary.md
+  - Guide:
+      - Configuration: guide/configuration.md
+      - Metrics and gate: guide/metrics.md
+      - Outputs: guide/outputs.md
+      - Command line: guide/cli.md
+      - API: api.md
+  - Record:
+      - record/index.md
+      - Scope: scope.md
+      - Decisions:
+          - 0001 Median bias, sea coast: decisions/0001-median-bias-and-sea-coast.md
+          - 0002 Velocity rules: decisions/0002-velocity-gate-outside-deforming-areas.md
+          - 0003 VLM gate: decisions/0003-vlm-gate.md
+      - Trade studies: record/studies.md
+      - Baselines: baselines.md
+      - v0.5 CalVal report: vnv/v0.5-calval-report.md
+
 plugins:
   - search
   - mkdocstrings:
       handlers:
         python:
           paths: [src]
+
 markdown_extensions:
   - tables
   - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.highlight
   - pymdownx.superfences
+  - pymdownx.details

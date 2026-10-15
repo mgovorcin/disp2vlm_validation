@@ -48,16 +48,16 @@ frame. The numbers live in `disp2vlm_validation.requirements.GATE`;
 | 2 | Stable inland | F08886 Oklahoma City |
 | 3 | High relief + islands | F16940 Los Angeles |
 | 4 | Northeast / GIA | F08622 New York |
-| 5 | Fast basin (defo area) | Central Valley (TBD) |
-| 6 | Coseismic event | Ridgecrest 2019 (TBD) |
-| 7 | Sparse GNSS | Great Basin or Montana (TBD) |
-| 8 | Non-NA plate | Hawaii / Puerto Rico (TBD) |
+| 5 | Fast basin (defo area) | F36542 Central Valley |
+| 6 | Coseismic event | F16941 Ridgecrest 2019 |
+| 7 | Sparse GNSS | F07081 Montana |
+| 8 | Non-NA plate | F23211 Hawaii (PA), F35991 Puerto Rico (CA) |
 
 ## Outputs
 
 `metrics.json` and `stations.csv` per run; an HTML/PDF VnV report per frame
 and a release summary; a requirements traceability table. Audience: the
-internal team and the OPERA CalVal review.
+OPERA CalVal review and anyone checking a calibration.
 
 ## Not in scope
 
@@ -65,8 +65,8 @@ Making products (that is cal-disp / Venti), staging DISP stacks at scale
 (the batch pipelines), and anything that would put this package in the
 operational image.
 
-## Roadmap (Venti plan)
+## History (Venti plan)
 
-T21 port the e2e core (`trade studies/e2e_validation/validate_stack.py`) →
-T22 station classes → T23 gate logic and comparison modes → T24 reports and
-traceability → T25 CLI, caching, batch execution.
+T21 port of the e2e core → T22 station classes → T23 gate logic and
+comparison modes → T24 reports and traceability → T25 CLI and caching, all
+done; T57 VLM validation; T46 the 10-frame benchmark.
