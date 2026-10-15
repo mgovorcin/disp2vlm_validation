@@ -10,6 +10,7 @@ are in the repository.
 | TS-B1 | Where does the stable-station bias come from, and which coherence weighting is best? | [studies/TS-B1](https://github.com/mgovorcin/disp2vlm_validation/blob/main/studies/TS-B1/REPORT.md) |
 | TS-U1 | Does whole-cycle unwrap correction on islands help? (phase 1: no-go for v0.5) | [studies/TS-U1](https://github.com/mgovorcin/disp2vlm_validation/blob/main/studies/TS-U1/REPORT.md) |
 | TS-E4 | Are the product's uncertainties realistic? | [studies/TS-E4](https://github.com/mgovorcin/disp2vlm_validation/blob/main/studies/TS-E4/REPORT.md) |
+| TS-T1 | Does a tropospheric correction help at 0.3–1.5 km relief? (only on humid Puerto Rico) | [studies/TS-T1](https://github.com/mgovorcin/disp2vlm_validation/blob/main/studies/TS-T1/REPORT.md) |
 
 Studies read the validator's outputs; one, TS-G1, also reads the UNR grid
 itself, because the grid is its subject. Its results never feed the gate.
