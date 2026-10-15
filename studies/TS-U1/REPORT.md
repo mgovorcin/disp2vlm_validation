@@ -7,7 +7,7 @@ Venti plan T42, PRD §7.2 and R-U1. Run 2026-10-09.
   `c10ba88` (venti-dev PR #21).
 - **Baseline:** the T38 v0.5 runs without unwrap.
 - **Scoring:** `studies/ts_u1.py`.
-- **Runs:** `/mnt/aurora-z0/govorcin/cal_disp_e2e/tsu1/` and
+- **Runs:** `$E2E_ROOT/tsu1/` and
   `runs/<frame>-v05-unwrap`.
 
 ## Three bugs found on the way (fixed)

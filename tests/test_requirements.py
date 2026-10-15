@@ -33,8 +33,14 @@ def test_gate_matches_the_prd():
 
 def test_benchmark_has_the_eight_prd_frames():
     assert sorted(BENCHMARK_FRAMES) == list(range(1, 9))
-    known = {f["frame"] for f in BENCHMARK_FRAMES.values() if f["frame"] != "TBD"}
-    assert known == {"F08882", "F08886", "F16940", "F08622"}
+    # frames 5-8 chosen 2026-10-09 (Venti T40.1); number 8 has two frames
+    frames = {
+        f.strip() for v in BENCHMARK_FRAMES.values() for f in v["frame"].split(",")
+    }
+    assert frames == {
+        "F08882", "F08886", "F16940", "F08622",
+        "F36542", "F16941", "F07081", "F23211", "F35991",
+    }  # fmt: skip
 
 
 def test_cli_gate_json_and_text():

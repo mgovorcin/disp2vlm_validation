@@ -2,8 +2,8 @@
 
 Venti plan T50.2, PRD R-E2 and R-E4 (σ realism is reported, not gated).
 Run 2026-10-12 with `studies/ts_e4.py` on the best v0.5 run of each T46
-frame (remove-restore where it applies). Outputs on aurora:
-`/mnt/aurora-z0/govorcin/cal_disp_e2e/ts_e4/<frame>/`.
+frame (remove-restore where it applies). Outputs on the original host:
+`$E2E_ROOT/ts_e4/<frame>/`.
 
 ## Question and method
 

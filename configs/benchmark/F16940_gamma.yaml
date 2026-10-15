@@ -1,0 +1,13 @@
+# T38 baseline: the gamma run F16940-venti600-notropo, no baseline of its own
+label: gamma-F16940-venti600-notropo
+frame:
+  frame: F16940
+  disp_dir: $E2E_ROOT/frames/F16940/disp_s1
+  water_mask: $E2E_ROOT/frames/F16940/water_mask.tif
+  los_file: $E2E_ROOT/frames/F16940/input_data/static_input/OPERA_L3_DISP-S1-STATIC_F16940_20140403_S1A_v1.0_line_of_sight_enu.tif
+  cache_dir: $E2E_ROOT/cache_F16940
+  ref_pixel: [2653, 7599]
+  exclude_stations: []
+candidate_dir: $E2E_ROOT/runs/F16940-venti600-notropo/products
+out_dir: $E2E_ROOT/t38/runs/F16940/gamma
+workers: 6

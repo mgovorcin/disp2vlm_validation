@@ -1,0 +1,14 @@
+# TS-B1: coherence_power = 4 vs gamma
+label: tsb1-p4
+frame:
+  frame: F08886
+  disp_dir: $DISP_DATA/okc_08886/frame_8886/disp_s1
+  water_mask: $DISP_DATA/okc_08886/frame_8886/water_mask.tif
+  los_file: $E2E_ROOT/frames/F08886/input_data/static_input/OPERA_L3_DISP-S1-STATIC_F08886_20160705_S1A_v1.0_line_of_sight_enu.tif
+  cache_dir: $E2E_ROOT/cache_F08886
+  ref_pixel: [2459, 5321]
+  exclude_stations: []
+candidate_dir: $E2E_ROOT/runs/F08886-tsb1-p4/products
+baseline_dir: $E2E_ROOT/runs/F08886-venti600-notropo/validation
+out_dir: $E2E_ROOT/tsb1/runs/F08886/p4
+workers: 6

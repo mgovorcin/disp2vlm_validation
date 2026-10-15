@@ -27,7 +27,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import rasterio
-import yaml
 from pydantic import BaseModel, Field
 
 from .classes import classify_stations, load_polygons, metrics_by_class
@@ -111,7 +110,9 @@ class RunConfig(BaseModel):
 
 def load_run_config(path: Path | str) -> RunConfig:
     """`RunConfig` from YAML."""
-    return RunConfig(**yaml.safe_load(Path(path).read_text()))
+    from .config_io import read_config
+
+    return RunConfig(**read_config(path))
 
 
 def _read_tif(path: Path) -> np.ndarray:

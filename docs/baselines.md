@@ -1,12 +1,13 @@
 # Baselines
 
 Numbers this package must reproduce, and the release comparisons it has made.
-Configs are in `configs/aurora/` (paths on aurora; the GNSS of every frame is
-frozen in its `cache_dir` on first use).
+Configs are in `configs/benchmark/`: their paths are environment variables
+(`configs/benchmark/README.md`), and the GNSS of every frame is frozen in its
+`cache_dir` on first use.
 
 ## Reproduction of the trade study (plan T25.4)
 
-`disp2vlm-validate run --config configs/aurora/F08882_repro_gamma.yaml`
+`disp2vlm-validate run --config configs/benchmark/F08882_repro_gamma.yaml`
 re-validates the gamma run `runs/7085ec9-notropo` (cal-disp `v0.2-79-g7085ec9`,
 600 km window, troposphere off) against `runs/7df274a`, which is what
 `trade studies/e2e_validation/validate_stack.py` reported on 2026-10-02. It
@@ -47,8 +48,8 @@ Candidate: cal-disp `feature/v05-calibrate-pair` (Venti `2b2678b`) with
 two passes, coherence⁸ + robust weights, k = 3.9, troposphere off and unwrap
 off. Baseline: the gamma runs (Venti 600 km plane, troposphere off), which
 are the trade-study `validation/` folders. Configs:
-`configs/aurora/<frame>_v05.yaml`. Runs and reports:
-`/mnt/aurora-z0/govorcin/cal_disp_e2e/t38/runs/<frame>/{gamma,v05-loclin}`.
+`configs/benchmark/<frame>_v05.yaml`. Runs and reports:
+`$E2E_ROOT/t38/runs/<frame>/{gamma,v05-loclin}`.
 Summary page: `t38/release_summary_v05.html`. Calibration took 27 min per
 208 epochs (12 jobs, 0 failures).
 
@@ -134,7 +135,7 @@ first three T38 frames. Gate under decision 0002: velocity rules on the
 stations outside deforming areas and event footprints (Venti DB
 `1.0-draft`, venti-dev `f96bb19`: Houston-Galveston, San Joaquin, Kern N/S,
 Kīlauea; Ridgecrest Mw 7.1 / 6.4, Kīlauea 2018 LERZ); Houston's benchmark
-condition gates F08882 (`configs/aurora/gate_F08882.yaml`). "+ RR" is
+condition gates F08882 (`configs/benchmark/gate_F08882.yaml`). "+ RR" is
 v0.5 with remove-restore (cal-disp `_remove_restore_valid`, same DBs).
 
 | frame | run | verdict | DD sill, change vs gamma | gated v0.5: median / RMSE | gated gamma: median / RMSE |
