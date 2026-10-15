@@ -6,7 +6,8 @@
 ``gate`` prints the release gate and the benchmark frames; ``run`` validates
 one candidate on one frame (``run.yaml``, see `pipeline.RunConfig`); ``vlm``
 validates a VLM run against GNSS (``vlm.yaml``, see `vlm.VlmRunConfig`);
-``summary`` gathers frame runs into ``release_summary.html``.
+``summary`` gathers frame runs into ``release_summary.html``; ``demo``
+writes a small synthetic frame and its configs to try the others on.
 """
 
 from __future__ import annotations
@@ -105,10 +106,22 @@ def summary(
     print(f"wrote {path}")
 
 
+def demo(out_dir: Path, /, seed: int = 1) -> None:
+    """Write a small synthetic frame and ready-to-run configs (no download).
+
+    Then run, e.g., ``disp2vlm-validate run --config OUT_DIR/configs/perfect.yaml``.
+    """
+    from .demo import write_demo
+
+    for path in write_demo(out_dir, seed):
+        print(f"wrote {path}")
+    print(f"next: disp2vlm-validate run --config {out_dir}/configs/perfect.yaml")
+
+
 def main() -> None:
     """Entry point."""
     tyro.extras.subcommand_cli_from_dict(
-        {"gate": gate, "run": run, "vlm": vlm, "summary": summary},
+        {"gate": gate, "run": run, "vlm": vlm, "summary": summary, "demo": demo},
         description=__doc__,
     )
 
