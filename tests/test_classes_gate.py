@@ -296,7 +296,7 @@ class TestGate:
     def test_houston_gate_file(self):
         from pathlib import Path
 
-        path = Path(__file__).parents[1] / "configs" / "aurora" / "gate_F08882.yaml"
+        path = Path(__file__).parents[1] / "configs" / "benchmark" / "gate_F08882.yaml"
         g = load_gate(path)
         assert all(t.gating for t in g.per_class_targets.values())
         assert all(t.rmse_must_drop_vs_raw for t in g.per_class_targets.values())

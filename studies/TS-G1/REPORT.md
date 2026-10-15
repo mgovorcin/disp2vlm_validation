@@ -1,8 +1,8 @@
 # TS-G1: UNR grid fidelity and k per frame
 
 Venti plan T39, PRD §7.2 and R-E1. Run 2026-10-09 with `studies/ts_g1.py`
-(driver: `run_all.sh`). Outputs on aurora:
-`/mnt/aurora-z0/govorcin/cal_disp_e2e/ts_g1/<frame>/`.
+(driver: `run_all.sh`). Outputs on the original host:
+`$E2E_ROOT/ts_g1/<frame>/`.
 
 ## Question and method
 

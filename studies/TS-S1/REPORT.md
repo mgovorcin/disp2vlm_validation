@@ -1,8 +1,8 @@
 # TS-S1: DISP noise below the calibration cutoff
 
 Venti plan T43, PRD R-E2 and §7.2. Run 2026-10-09 with `studies/ts_s1.py` on
-the T38 v0.5 runs (calibrated DISP, troposphere off). Outputs on aurora:
-`/mnt/aurora-z0/govorcin/cal_disp_e2e/ts_s1/<frame>/`.
+the T38 v0.5 runs (calibrated DISP, troposphere off). Outputs on the original host:
+`$E2E_ROOT/ts_s1/<frame>/`.
 
 ## Question and method
 

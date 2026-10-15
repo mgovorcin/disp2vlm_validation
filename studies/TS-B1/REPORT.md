@@ -8,8 +8,8 @@ Venti plan T44.2, PRD §7.2. Run 2026-10-09.
 - **Baseline:** the gamma run.
 - **Calibration:** cal-disp `feature/v05-calibrate-pair`, about 25 min per
   frame, 0 failures.
-- **Configs:** `configs/aurora/tsb1/`.
-- **Runs:** `/mnt/aurora-z0/govorcin/cal_disp_e2e/tsb1/` and
+- **Configs:** `configs/benchmark/tsb1/`.
+- **Runs:** `$E2E_ROOT/tsb1/` and
   `runs/<frame>-tsb1-p{4,16}`.
 
 ## Stable stations

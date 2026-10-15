@@ -48,7 +48,7 @@ stable station. The 2018 eruption is now an event in the Venti event DB
    Raw is tied to one reference pixel, so its constant offset (the median
    raw residual on the gated stations) is removed first; the offset and
    raw's class metrics are recorded as `velocity_by_class_raw`. Houston
-   (`configs/aurora/gate_F08882.yaml`): |median bias| < 1 mm/yr and the
+   (`configs/benchmark/gate_F08882.yaml`): |median bias| < 1 mm/yr and the
    RMSE drop, on `defo_area` (with the Venti area DB) and `subsiding`
    (without it).
 4. A run must pass the same deforming-area and event databases to every
@@ -105,7 +105,7 @@ RMSE ≤ √(raw² + reference²): the calibration adds no error beyond its
 reference. The validator still never reads the grid; the number is a
 documented study result in the frame's gate file.
 
-**Houston** (`configs/aurora/gate_F08882.yaml`): defo_area 1.82 and
+**Houston** (`configs/benchmark/gate_F08882.yaml`): defo_area 1.82 and
 subsiding 4.23 mm/yr.
 
 | run | defo_area | subsiding |

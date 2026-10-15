@@ -28,7 +28,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
-import yaml
 from pydantic import BaseModel, Field
 
 from .requirements import GATE
@@ -101,7 +100,9 @@ def load_gate(path: Path | str | None) -> GateConfig:
     """`GateConfig` from a YAML file; defaults when `path` is None."""
     if path is None:
         return GateConfig()
-    return GateConfig(**(yaml.safe_load(Path(path).read_text()) or {}))
+    from .config_io import read_config
+
+    return GateConfig(**read_config(path))
 
 
 @dataclass

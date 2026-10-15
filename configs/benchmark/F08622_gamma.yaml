@@ -1,0 +1,12 @@
+# T38 baseline: the gamma run F08622-venti600-notropo, no baseline of its own
+label: gamma-F08622-venti600-notropo
+frame:
+  frame: F08622
+  disp_dir: $DISP_DATA/nyc_08622/frame_08622/disp_s1
+  water_mask: $DISP_DATA/nyc_08622/frame_08622/water_mask.tif
+  los_file: $E2E_ROOT/frames/F08622/input_data/static_input/OPERA_L3_DISP-S1-STATIC_F08622_20140403_S1A_v1.0_line_of_sight_enu.tif
+  cache_dir: $E2E_ROOT/cache_F08622
+  exclude_stations: []
+candidate_dir: $E2E_ROOT/runs/F08622-venti600-notropo/products
+out_dir: $E2E_ROOT/t38/runs/F08622/gamma
+workers: 6

@@ -1,0 +1,14 @@
+# T38: cal-disp v0.5 (loclin 50 km two-pass, coh^8 + robust, k=3.9) vs gamma
+label: v05-loclin
+frame:
+  frame: F16940
+  disp_dir: $E2E_ROOT/frames/F16940/disp_s1
+  water_mask: $E2E_ROOT/frames/F16940/water_mask.tif
+  los_file: $E2E_ROOT/frames/F16940/input_data/static_input/OPERA_L3_DISP-S1-STATIC_F16940_20140403_S1A_v1.0_line_of_sight_enu.tif
+  cache_dir: $E2E_ROOT/cache_F16940
+  ref_pixel: [2653, 7599]
+  exclude_stations: []
+candidate_dir: $E2E_ROOT/runs/F16940-v05-loclin/products
+baseline_dir: $E2E_ROOT/runs/F16940-venti600-notropo/validation
+out_dir: $E2E_ROOT/t38/runs/F16940/v05-loclin
+workers: 6

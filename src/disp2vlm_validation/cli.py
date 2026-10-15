@@ -69,15 +69,15 @@ def vlm(config: Path, verbose: bool = False) -> None:
 
     See `disp2vlm_validation.vlm.VlmRunConfig` for the fields.
     """
-    import yaml
-
     from .vlm import VlmRunConfig, run_vlm
 
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
-    cfg = VlmRunConfig(**yaml.safe_load(Path(config).read_text()))
+    from .config_io import read_config
+
+    cfg = VlmRunConfig(**read_config(config))
     m = run_vlm(cfg)
     s = m["vertical_rate"]["gated_both_looks"]
     print(
