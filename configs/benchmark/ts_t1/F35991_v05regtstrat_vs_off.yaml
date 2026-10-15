@@ -1,0 +1,15 @@
+label: v05regtstrat-vs-off
+frame:
+  frame: F35991
+  disp_dir: $E2E_ROOT/frames/F35991/disp_s1
+  water_mask: $E2E_ROOT/frames/F35991/water_mask.tif
+  los_file: $E2E_ROOT/frames/F35991/input_data/static_input/OPERA_L3_DISP-S1-STATIC_F35991_20140403_S1A_v1.0_line_of_sight_enu.tif
+  cache_dir: $E2E_ROOT/cache_F35991
+  ref_pixel: [2906, 7772]
+  exclude_stations: []
+  defo_geojson: $E2E_ROOT/t46/db_v1_main/defo_area_db_v1.geojson
+  event_geojson: $E2E_ROOT/t46/db_v1_main/event_db_v1.geojson
+candidate_dir: $E2E_ROOT/runs/F35991-v05regtstrat/products
+baseline_dir: $E2E_ROOT/t46/runs/F35991/v05reg_db
+out_dir: $E2E_ROOT/t46/ts_t1/F35991_v05regtstrat_vs_off
+workers: 6
