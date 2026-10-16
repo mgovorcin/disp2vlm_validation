@@ -51,6 +51,7 @@ nav:
       - Trade studies: record/studies.md
       - Baselines: baselines.md
       - v0.5 CalVal report: vnv/v0.5-calval-report.md
+      - VLM v0.1 report: vnv/vlm-v0.1-report.md
 
 plugins:
   - search
