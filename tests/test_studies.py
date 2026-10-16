@@ -211,3 +211,25 @@ def test_ts_e4_realism_pairs_and_sigma_sampling(tmp_path):
     bad = ts.realism(rng.normal(0, 1.6, 20000))
     assert not bad["meets_R_E4"] and bad["robust_std_z"] > 1.5
     assert ts.realism(np.array([np.nan]))["n"] == 0
+
+
+def test_ts_e4_extrapolated_splits_by_the_older_sigma():
+    """Rows without sigma in the older product are the extrapolated ones."""
+    ts = _load("ts_e4_extrapolated")
+    t = pd.date_range("2020-01-01", periods=2, freq="12D")
+    idx = pd.MultiIndex.from_tuples(
+        [(t[0], t[1], "A"), (t[0], t[1], "B")], names=["ref", "sec", None]
+    )
+    long = pd.DataFrame(
+        {"r": [1.0, 20.0], "sigma_cal": [0.2, 1.0], "sigma_gnss": [1.0, 1.0]},
+        index=idx,
+    )
+    old = pd.DataFrame(
+        {"A": [0.2], "B": [np.nan]},
+        index=pd.MultiIndex.from_tuples([(t[0], t[1])], names=["ref", "sec"]),
+    )
+    ext = ts.mark_extrapolated(long, old)
+    assert ext.tolist() == [False, True]
+    out = ts.split_realism(long, ext, 10.0)
+    assert (out["fitted"]["station_pairs"], out["extrapolated"]["stations"]) == (1, 1)
+    assert out["extrapolated"]["median_abs_residual_mm"] == 20.0
