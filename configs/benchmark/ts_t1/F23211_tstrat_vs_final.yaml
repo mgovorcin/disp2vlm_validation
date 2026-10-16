@@ -1,0 +1,15 @@
+label: final-tstrat-vs-final
+frame:
+  frame: F23211
+  disp_dir: $E2E_ROOT/frames/F23211/disp_s1
+  water_mask: $E2E_ROOT/frames/F23211/water_mask.tif
+  los_file: $E2E_ROOT/frames/F23211/input_data/static_input/OPERA_L3_DISP-S1-STATIC_F23211_20140403_S1A_v1.0_line_of_sight_enu.tif
+  cache_dir: $E2E_ROOT/cache_F23211
+  ref_pixel: [2123, 5616]
+  exclude_stations: []
+  defo_geojson: $E2E_ROOT/t50conf/inputs/defo_area_db_v1.geojson
+  event_geojson: $E2E_ROOT/t50conf/inputs/event_db_v1.geojson
+candidate_dir: $E2E_ROOT/runs/F23211-final-tstrat/products
+baseline_dir: $E2E_ROOT/t50conf/runs/F23211
+out_dir: $E2E_ROOT/t50conf/runs/F23211_tstrat_vs_final
+workers: 6
