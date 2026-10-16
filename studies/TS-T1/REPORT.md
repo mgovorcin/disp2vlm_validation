@@ -98,3 +98,33 @@ disp2vlm-validate run --config configs/benchmark/ts_t1/F35991_v05regtstrat_vs_of
 The candidate products come from cal-disp runs with
 `configs/benchmark/ts_t1/algorithm_parameters_*.yaml` and the staged
 TROPO-ZENITH files.
+
+## Addendum (2026-10-15): Hawaii above the band
+
+Hawaii (F23211, relief 1.62 km) is above the band, so `auto` would choose
+`stratified` there. Until now it had only run with tropo off. This run uses the
+release configuration (cal-disp v0.5.0, the frame table) with `tropo.mode:
+stratified`, validated against the same configuration with tropo off (the
+confirmation run). Stratified was applied on every pair (328/328).
+
+| Hawaii | tropo off (v0.5.0) | stratified |
+|---|---|---|
+| DD sill | 409.7 | 286.8 (**−27.8%** [−43.2, −18.0]) |
+| gated median / RMSE (18 stations) | +0.46 / 2.40 | +0.96 / 2.30 |
+| stable class (6 stations) median / RMSE | +1.49 / 2.89 | +1.90 / 3.08 |
+| coastal class (9 stations) median / RMSE | −0.24 / 2.28 | −0.49 / 1.88 |
+| gate against tropo off | – | **FAIL**: \|median bias\| up 0.50 mm/yr (limit 0.2) |
+
+- **Stratified removes long-wavelength error:** the sill falls 28%, and the
+  drop is significant.
+- **The absolute median bias rises by 0.5 mm/yr,** driven by the six stable
+  stations.
+- **Hawaii stays off.** That is the frame table's current setting (no tropo
+  entry). A run with `auto` would choose stratified here, so `auto` is not
+  recommended for Hawaii.
+- **Worth revisiting:** the sill gain is large. A bias of this size on six
+  stations may reflect local station behaviour rather than the correction.
+  Revisit with more stations, or with a per-class view of the bias.
+
+Config: `configs/benchmark/ts_t1/F23211_tstrat_vs_final.yaml`; run
+`$E2E_ROOT/runs/F23211-final-tstrat`.
