@@ -82,3 +82,49 @@ motion.
    saying so, because σ_CAL alone covers about 5% of the pair residuals.
 5. **R-E4 is reported as met** with the documented budget on 9 of 10
    frames.
+
+## Addendum (2026-10-15): where σ_CAL is extrapolated
+
+Since cal-disp v0.5.0, σ_CAL has a value wherever the calibration has one
+(Venti `uncertainty.extrapolate_sigma`, owner decision 2026-10-14). Where the
+fit had too little weight, σ_CAL is the nearest fitted value, grown with the
+distance up to 3×. TS-E4 above dropped those station-pairs: their σ_CAL was
+NaN.
+
+`studies/ts_e4_extrapolated.py` splits the station-pairs of a frame by whether
+a product written without extrapolation had a σ there. It uses the
+confirmation-run products (`runs/<frame>-final`) and, as the older products,
+the T46 runs.
+
+**Few stations sit where σ is extrapolated.** GNSS stations are almost all on
+coherent pixels:
+
+| frame | station-pairs with extrapolated σ (sample of pairs) | stations |
+|---|---|---|
+| F08882 Houston | 7.0% | 21 |
+| F35991 Puerto Rico | 1.3% | 1 |
+| F08622 New York | 0.3% | 1 |
+| F23211 Hawaii | 0% | 0 |
+
+**Houston, full user budget (σ_CAL + 10 mm DISP + σ_GNSS):**
+
+| station-pairs | n (stations) | median σ_CAL | median \|r\| | robust std(z) | coverage95 |
+|---|---|---|---|---|---|
+| σ_CAL fitted | 8,967 (61) | 0.25 mm | 5.1 mm | 0.73 | 94.4% |
+| σ_CAL extrapolated | 487 (15) | 1.17 mm | 9.6 mm | **1.39** | **82.3%** |
+
+- **Residuals are about twice as large** where σ_CAL is extrapolated. Those are
+  decorrelated pixels, where DISP itself is noisier.
+- **The extrapolation does raise σ_CAL** (median 0.25 → 1.17 mm), but that is
+  small next to a 10 mm DISP term. The missing error is mostly DISP noise, not
+  surface uncertainty.
+- **Under-coverage:** the budget covers 82% instead of about 95%. Bringing the
+  robust std(z) to 1 there needs about 14 mm for the DISP term instead of 10.
+
+**For the refinement (Venti todo):**
+- Growing σ_CAL further would not fix this, because the error is in DISP.
+- Two options instead: document a larger DISP term for low-coherence pixels
+  (e.g. by temporal coherence), or flag extrapolated pixels so users can weight
+  them down.
+- This rests on 15 stations on one frame; other frames have too few stations
+  in such pixels to test.
