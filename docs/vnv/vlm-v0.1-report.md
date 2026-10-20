@@ -18,12 +18,24 @@ reported, not gated.
 | Frames | DISP-CAL | gated n | median | NMAD | RMSE (mm/yr) | verdict |
 |---|---|---|---|---|---|---|
 | LA F16940 + F18904 (2016–2023) | v0.5, T46 runs | 172 | −0.42 | 1.44 | 2.67 | **PASS** |
+| LA F16940 + F18904 | **v0.5.1 release**, F18904 unlisted | 167 | −0.35 | 1.46 | 2.77 | **PASS** |
+| LA F16940 + F18904 | v0.5.1 release + F18904 frame entry (venti-dev #44) | 161 | −0.29 | 1.32 | 2.65 | **PASS** |
 | Houston F08882 + F38238 | v0.5, T46 runs | 18 | +0.23 | 2.03 | 4.17 | not assessable (< 20) |
 | Houston F08882 + F38238 | **v0.5.0 release** (confirmation run) | 19 | −0.03 | 2.39 | 3.52 | not assessable (< 20) |
 
 - **LA meets the owner's 1–2 mm/yr target:** 80% of stations are within
   2 mm/yr. Six local sites (BRAN, CRHS, TRAK, WNRA, MILK, GISA) dominate the
   RMSE; without them it is 1.56.
+- **LA on the release calibration (2026-10-20) still passes.** F18904, the
+  descending partner, is not in the frame table, so the release calibrates it
+  without LA's island regions and stratified tropo. Its Catalina offset is
+  wrong (CAT2 LOS −54.2 vs GNSS −29.7 mm/yr); before the release the ascending
+  offset was wrong the other way and the two cancelled, so CAT2 goes from
+  −0.6 to −13.1 mm/yr (GNSS −1.0). Giving F18904 the LA settings
+  (frame table 0.7-draft, venti-dev #44) brings CAT2 to −2.1, lowers NMAD to
+  1.32 and the F18904 DD sill to −91.4% of raw (−89.0% without). Without the
+  six local sites the RMSE is 1.58 (1.56 on the T46 runs). Runs:
+  `cal_disp_e2e/t57/{la_release,la_regions,la_full}`.
 - **Houston is an edge case.** Most of its stations are inside the
   Houston-Galveston subsidence area, so 19 remain for the gate. On the release
   calibration the median moves to zero and RMSE improves (the worst stations
@@ -52,9 +64,13 @@ Coverage of \|z\| < 1.96 and the robust spread of z, by span:
 
 ## Open items
 
-- **Re-run LA on the v0.5.0 release calibration.** LA's frame table now has
-  stratified tropo and island regions; the LA numbers above use the T46
-  calibration.
+- **F18904 frame entry** (venti-dev #44), then a cal-disp Venti pin bump.
+- **Catalina CAT3:** the ascending island offset fits CAT2 but is ~13 mm/yr
+  off at CAT3 (LOS), so CAT3 reads +6.3 mm/yr; one offset per island does not
+  fit both stations (Venti todo).
+- **Single-look pixels in the LA ranges:** DAM2, RKMG and VIMT fall back to
+  single-geometry projection on the release calibration (weighted condition
+  > 10); cause open (Venti todo).
 - **Long-span σ realism** (above).
 - **Houston** in the final edge-case pass.
 - **VLM v0.2:** the tiled SAS (Venti plan T63) uses every overlapping asc/desc
