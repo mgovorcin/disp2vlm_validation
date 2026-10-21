@@ -74,9 +74,12 @@ Coverage of \|z\| < 1.96 and the robust spread of z, by span:
 
 ## Open items
 
-- **Catalina CAT3:** the ascending island offset fits CAT2 but is ~13 mm/yr
-  off at CAT3 (LOS), so CAT3 reads +6.3 mm/yr; one offset per island does not
-  fit both stations (Venti todo).
+- **Catalina CAT3 is a local site.** Its VLM error (+6.3 mm/yr) comes from the
+  CAT3 pixel itself, which reads 7 (ascending) and 5 (descending) mm/yr LOS above
+  its 1 km surroundings in both looks while the station is stable: a pixel
+  artefact on the Two Harbors isthmus, not calibration. The island as a whole
+  is tied to GNSS within ~2 mm/yr LOS; an opt-in per-island plane
+  (venti-dev #47) removes the remaining tilt but does not change the LA result.
 - **Long-span σ realism** (above).
 - **Houston** in the final edge-case pass.
 - **VLM v0.2:** the tiled SAS (Venti plan T63) uses every overlapping asc/desc
