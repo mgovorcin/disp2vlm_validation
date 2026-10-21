@@ -53,8 +53,20 @@ No released configuration changes: the F16941 runs are superseded
 Montana stands on the sill. Hawaii could then use stratified tropo (`auto`
 already chooses it at 1.62 km relief), subject to the v0.5.3 re-run below.
 
-## Evidence still to add
+## Hawaii on cal-disp v0.5.3 (2026-10-21)
 
-- Hawaii stratified on cal-disp v0.5.3 (`cal_disp_e2e/t57/hawaii_v053`):
-  v0.5.0 evaluated the stratified model only on each epoch's valid pixels
-  (venti-dev #45), which changes which station epochs are scored.
+v0.5.0 evaluated the stratified model only on each epoch's valid pixels
+(venti-dev #45); the re-run on v0.5.3 (`cal_disp_e2e/t57/hawaii_v053`,
+328/328 pairs) gives the same station verdict:
+
+| Hawaii, stratified vs off | v0.5.0 | v0.5.3 |
+|---|---|---|
+| DD sill vs off | −27.8% [−43.2, −18.0] | −27.6% [−40.5, −19.4] |
+| gated median / RMSE (18 stations) | +0.96 / 2.30 (off +0.46 / 2.40) | +0.96 / 2.30 (off +0.46 / 2.40) |
+| \|median\| rise [paired 95% CI] | +0.50 [−0.39, +0.92] | +0.50 [−0.39, +0.92] |
+| same, 3x3-median sample | −0.02 | −0.06 |
+| verdict now / with 0004 | FAIL / PASS | FAIL / PASS |
+
+With 0004 accepted, Hawaii can take `tropo.mode: stratified` in the frame
+table (a separate Venti PR, cal-disp release with a metadata-only golden
+rebuild, as 0.5.2).
