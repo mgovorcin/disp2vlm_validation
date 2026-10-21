@@ -28,7 +28,7 @@ import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import h5py
 import numpy as np
@@ -132,7 +132,31 @@ def _sample(f: h5py.File, layer: str, rows: np.ndarray, cols: np.ndarray) -> np.
     return out
 
 
-def _span(wide: pd.DataFrame, t0: datetime, t1: datetime, half: pd.Timedelta):
+def _epoch_fit(wide: pd.DataFrame, t: datetime, half: pd.Timedelta) -> pd.Series:
+    """Per-station linear fit over ``t +- half`` evaluated at `t` (NaN if < 10 days)."""
+    w = wide.loc[t - half : t + half]
+    x = (w.index - pd.Timestamp(t)).days.to_numpy(dtype=float)
+    out = {}
+    for s in w.columns:
+        y = w[s].to_numpy(dtype=float)
+        ok = np.isfinite(y)
+        out[s] = (
+            float(np.polyval(np.polyfit(x[ok], y[ok], 1), 0.0))
+            if ok.sum() >= 10
+            else np.nan
+        )
+    return pd.Series(out, dtype=float)
+
+
+def _span(
+    wide: pd.DataFrame,
+    t0: datetime,
+    t1: datetime,
+    half: pd.Timedelta,
+    estimate: str = "median",
+):
+    if estimate == "window_fit":
+        return _epoch_fit(wide, t1, half) - _epoch_fit(wide, t0, half)
     return (
         wide.loc[t1 - half : t1 + half].median()
         - wide.loc[t0 - half : t0 + half].median()
@@ -144,8 +168,15 @@ def pair_residuals(
     stations: pd.DataFrame,
     daily: pd.DataFrame,
     half_window_days: int = 3,
+    gnss_epoch_estimate: Literal["median", "window_fit"] = "median",
 ) -> pd.DataFrame:
-    """Per (product, station): VLM and GNSS vertical/east displacement (mm)."""
+    """Per (product, station): VLM and GNSS vertical/east displacement (mm).
+
+    The GNSS position at each epoch is the median over ``+- half_window_days``
+    (``"median"``) or a linear fit over that window evaluated at the epoch
+    (``"window_fit"``; with ``half_window_days`` = half the VLM
+    ``temporal_options.window_days`` it smooths GNSS like the VLM smooths DISP).
+    """
     st = locate(products[0].path, stations)
     d = daily[daily["station"].isin(st.index)]
     wide = {
@@ -161,8 +192,9 @@ def pair_residuals(
                 k: _sample(f, k, r, c) for k in ("vertical", "vertical_std", "east")
             }
             mode = _sample(f, "mode", r, c)
-        gu = _span(wide["up"], p.t0, p.t1, half).reindex(st.index)
-        ge = _span(wide["east"], p.t0, p.t1, half).reindex(st.index)
+        gu = _span(wide["up"], p.t0, p.t1, half, gnss_epoch_estimate)
+        ge = _span(wide["east"], p.t0, p.t1, half, gnss_epoch_estimate)
+        gu, ge = gu.reindex(st.index), ge.reindex(st.index)
         rows.append(
             pd.DataFrame(
                 {
@@ -223,6 +255,29 @@ def sigma_realism(res: pd.DataFrame) -> list[dict[str, float]]:
     return out
 
 
+def pair_common_mode(res: pd.DataFrame) -> dict[str, Any]:
+    """Per-pair median vertical residual over stations and sigma coverage without it.
+
+    Every product is ``R(Tk) - R(T0)`` with one shared T0, so an error at T0
+    (or a network-wide GNSS excursion) shows as an offset common to all
+    stations of every pair; `sigma_realism` cannot tell it from noise.
+    """
+    ok = res.dropna(subset=["r_up", "sigma_up"])
+    if ok.empty:
+        return {"n_pairs": 0}
+    med = ok.groupby("t1")["r_up"].median()
+    dm = ok["r_up"] - ok["t1"].map(med)
+    z = (dm / ok["sigma_up"]).to_numpy()
+    return {
+        "n_pairs": int(med.size),
+        "mean_mm": float(med.mean()),
+        "std_mm": float(med.std(ddof=1)) if med.size > 1 else 0.0,
+        "per_pair_mm": {str(k): float(v) for k, v in med.items()},
+        "coverage_1_demeaned": float(np.mean(np.abs(z) < 1.0)),
+        "coverage_1.96_demeaned": float(np.mean(np.abs(z) < 1.96)),
+    }
+
+
 def evaluate_vlm(stats: dict[str, Any], gate: VlmGate = VLM_GATE) -> list[str]:
     """FAIL reasons of the VLM gate on the gated station-rate statistics."""
     reasons = []
@@ -254,6 +309,14 @@ class VlmRunConfig(BaseModel):
     event_geojson: Path | None = None
     exclude_stations: list[str] = Field(default_factory=list)
     half_window_days: int = 3
+    gnss_epoch_estimate: Literal["median", "window_fit"] = Field(
+        "median",
+        description=(
+            "GNSS position at an epoch: median over +-half_window_days, or a "
+            "linear fit over it ('window_fit'; use half_window_days = half the "
+            "VLM window_days, e.g. 48, to smooth GNSS like the VLM)"
+        ),
+    )
     min_pairs: int = 5
     min_span_years: float = 2.5
     min_gnss_span_years: float = 2.0
@@ -279,7 +342,9 @@ def run_vlm(cfg: VlmRunConfig) -> dict[str, Any]:
         cfg.cache_dir, bbox, min_span_years=cfg.min_gnss_span_years
     )
     stations = midas.drop(index=[s for s in cfg.exclude_stations if s in midas.index])
-    res = pair_residuals(products, stations, daily, cfg.half_window_days)
+    res = pair_residuals(
+        products, stations, daily, cfg.half_window_days, cfg.gnss_epoch_estimate
+    )
     rates = station_rates(res, cfg.min_pairs, cfg.min_span_years)
 
     polys = load_polygons(cfg.defo_geojson) + load_polygons(cfg.event_geojson)
@@ -328,6 +393,7 @@ def _metrics(
             res.loc[res["mode"] == 1, "gnss_east"],
         ),
         "sigma_realism": sigma_realism(res),
+        "pair_common_mode": pair_common_mode(res),
         "gate": asdict(VLM_GATE),
         "verdict": "PASS" if not reasons else "FAIL",
         "verdict_reasons": reasons,
