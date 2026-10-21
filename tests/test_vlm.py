@@ -166,3 +166,51 @@ def test_pair_residuals_and_rates_tables(run):
     np.testing.assert_allclose(
         rates["gnss_rate"], midas.loc[rates.index, "vu_mm_yr"], atol=0.02
     )
+
+
+def test_window_fit_rejects_a_short_gnss_excursion_at_t0():
+    """A 4 mm network-wide jump for one week at T0 biases every pair through
+    the 7-day median; the +-48-day linear fit (the VLM's own smoothing) is
+    barely moved by it."""
+    from disp2vlm_validation.vlm import _span
+
+    days = pd.date_range("2016-01-01", "2020-01-01", freq="D")
+    t0, t1 = datetime(2016, 7, 31), datetime(2019, 7, 31)
+    rate = 2.0 / 365.25  # mm/day
+    base = np.arange(days.size) * rate
+    wide = pd.DataFrame({s: base for s in ("A", "B", "C")}, index=days)
+    near_t0 = (days >= t0 - timedelta(days=3)) & (days <= t0 + timedelta(days=3))
+    wide.loc[near_t0] += 4.0
+    true = (t1 - t0).days * rate
+    med = _span(wide, t0, t1, pd.Timedelta(days=3))
+    fit = _span(wide, t0, t1, pd.Timedelta(days=48), "window_fit")
+    np.testing.assert_allclose(med, true - 4.0, atol=1e-6)
+    assert np.abs(fit - true).max() < 0.5
+
+
+def test_pair_common_mode_reports_a_shared_offset():
+    from disp2vlm_validation.vlm import pair_common_mode
+
+    rng = np.random.default_rng(0)
+    rows = []
+    for t in pd.date_range("2017-01-01", periods=6, freq="180D"):
+        for s in range(50):
+            r_up = 5.0 + rng.normal(0, 3.0)
+            rows.append(
+                {"t1": t.date(), "station": f"S{s}", "r_up": r_up, "sigma_up": 3.0}
+            )
+    cm = pair_common_mode(pd.DataFrame(rows))
+    assert cm["n_pairs"] == 6
+    assert cm["mean_mm"] == pytest.approx(5.0, abs=1.0)
+    # without the shared 5 mm the residuals are N(0, sigma): ~68% within 1 sigma
+    assert 0.6 < cm["coverage_1_demeaned"] < 0.76
+    assert pair_common_mode(pd.DataFrame(columns=["t1", "r_up", "sigma_up"])) == {
+        "n_pairs": 0
+    }
+
+
+def test_vlm_config_default_keeps_the_median():
+    cfg = VlmRunConfig(label="x", frame="F1", products_dir=Path("."),
+                       cache_dir=Path("."), out_dir=Path("."))  # fmt: skip
+    assert cfg.gnss_epoch_estimate == "median"
+    assert cfg.half_window_days == 3

@@ -67,10 +67,32 @@ Coverage of \|z\| < 1.96 and the robust spread of z, by span:
 | 5 | 0.81 / 1.14 | 0.82 / 1.49 |
 | 7 | 0.68 / 1.45 | 0.71 / 1.47 |
 
-- **The per-look `sigma_rate` term** (1.5 mm/yr) keeps the spread near 1 up to
-  about 2 years.
-- **Beyond 3 years σ under-covers** (coverage 70–80%, NMAD(z) 1.1–1.5): the
-  error grows faster than linearly with the span. Open for v0.2.
+Those columns are the T46 / v0.5.0 calibrations. On **cal-disp v0.5.3** (LA,
+`t57/la_dem`) the spread is 0.76–0.93 at every span up to 7 years, and coverage
+of 1.96σ is 0.81–0.92 (0.87–0.96 with `gnss_epoch_estimate: window_fit`):
+the long-span growth above came mostly from the NaN tropo holes that v0.5.3
+fixed. What is left is not σ but an **offset shared by all stations of a pair**
+(`pair_common_mode`, 2026-10-21):
+
+| LA, v0.5.3 | T0 | common mode (mean ± sd over pairs) | coverage 1σ / 1.96σ without it |
+|---|---|---|---|
+| GNSS 7-day median | 2016-07-31 | +6.4 ± 3.0 mm | 0.76 / 0.92 |
+| GNSS window fit (±48 d, like the VLM) | 2016-07-31 | +4.6 ± 2.0 mm | 0.79 / 0.92 |
+| GNSS window fit | 2016-10-23 (`t57/la_t0late`) | +6.9 ± 3.0 mm | 0.75 / 0.91 |
+
+- **A third is validation smoothing:** 7-day GNSS medians carry network-wide
+  excursions of up to 4 mm that the VLM's 96-day window does not.
+- **Part is the GNSS seasonal cycle, absent from the VLM by design:** the
+  calibration ties the long wavelengths to a secular (constant-velocity) GNSS
+  grid, so a VLM pair has no long-wavelength seasonal term while a station pair
+  does (network annual amplitude 3.5 mm). With T0 near the seasonal peak
+  (October) the station seasonal predicts the spring/fall alternation of the
+  offset (correlation 0.71).
+- **The rest, +3 to +4 ± 2 mm,** is a small constant plus a network rate bias
+  of ~0.3–0.5 mm/yr, within the gate (|median| ≤ 1 mm/yr). Moving T0 off the
+  stack edge does not remove it.
+- Station **rates are unaffected** by a shared offset; the per-pair products
+  carry it and σ does not include it.
 
 ## Open items
 
@@ -80,7 +102,10 @@ Coverage of \|z\| < 1.96 and the robust spread of z, by span:
   artefact on the Two Harbors isthmus, not calibration. The island as a whole
   is tied to GNSS within ~2 mm/yr LOS; an opt-in per-island plane
   (venti-dev #47) removes the remaining tilt but does not change the LA result.
-- **Long-span σ realism** (above).
+- **Per-pair common mode** (above): decide whether the per-pair VLM documents
+  that long-wavelength seasonal motion is not included, or σ gains a
+  correlated seasonal term; and whether validation smooths GNSS like the VLM
+  (`window_fit`).
 - **Houston** in the final edge-case pass.
 - **VLM v0.2:** the tiled SAS (Venti plan T63) uses every overlapping asc/desc
   track per MGRS tile, which should help frames like Houston and New York.
