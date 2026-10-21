@@ -27,6 +27,7 @@ import pandas as pd
 __all__ = [
     "DDResult",
     "SillResult",
+    "bias_rise_ci",
     "bootstrap_sills",
     "ci95",
     "double_differences",
@@ -53,6 +54,38 @@ def velocity_stats(insar: np.ndarray, gps: np.ndarray) -> dict[str, float]:
         "nmad": float(1.4826 * np.median(np.abs(res - np.median(res)))),
         "r2": float(np.corrcoef(gps[ok], insar[ok])[0, 1] ** 2),
     }
+
+
+def bias_rise_ci(
+    candidate: np.ndarray,
+    baseline: np.ndarray,
+    statistic: str = "median",
+    *,
+    ci: float = 0.95,
+    n_boot: int = 4000,
+    seed: int = 0,
+) -> tuple[float, float]:
+    """Paired station-bootstrap interval of ``|bias(candidate)| - |bias(baseline)|``.
+
+    `candidate` and `baseline` are the residuals (InSAR - GNSS) of the same
+    stations; resampling stations jointly keeps the pairing, so the interval
+    is that of the change, not of either bias (decision 0004).
+    """
+    c = np.asarray(candidate, dtype=float)
+    b = np.asarray(baseline, dtype=float)
+    if c.shape != b.shape:
+        msg = f"candidate {c.shape} and baseline {b.shape} must be paired"
+        raise ValueError(msg)
+    ok = np.isfinite(c) & np.isfinite(b)
+    c, b = c[ok], b[ok]
+    if c.size < 3:
+        return (float("nan"), float("nan"))
+    stat = np.median if statistic == "median" else np.mean
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, c.size, size=(n_boot, c.size))
+    d = np.abs(stat(c[idx], axis=1)) - np.abs(stat(b[idx], axis=1))
+    lo, hi = np.percentile(d, [50 * (1 - ci), 50 * (1 + ci)])
+    return float(lo), float(hi)
 
 
 def weighted_median(x: np.ndarray, w: np.ndarray) -> float:

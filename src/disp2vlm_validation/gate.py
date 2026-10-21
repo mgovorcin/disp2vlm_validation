@@ -87,6 +87,14 @@ class GateConfig(BaseModel):
     bias_statistic: Literal["median", "mean"] = GATE.bias_statistic  # type: ignore[assignment]
     target_abs_bias_mm_yr: float = GATE.target_abs_bias_mm_yr
     significance_ci: float = GATE.bootstrap_ci
+    bias_rise_test: Literal["point", "significant"] = Field(
+        default=GATE.bias_rise_test,  # type: ignore[arg-type]
+        description=(
+            "'point': FAIL when the |bias| rise exceeds the limit (v0.5 rule). "
+            "'significant': FAIL only when the paired station-bootstrap interval "
+            "of the rise lies above the limit (decision 0004, proposed)."
+        ),
+    )
     velocity_excluded_classes: list[str] = Field(
         default_factory=lambda: list(GATE.velocity_excluded_classes),
         description="Station classes left out of the velocity rules (decision 0002)",
@@ -120,6 +128,7 @@ class GateInputs:
     sill_baseline: float | None = None
     sill_change_vs_baseline_ci: tuple[float, float] | None = None
     velocity_baseline: dict[str, float] | None = None
+    bias_rise_ci: tuple[float, float] | None = None
     golden_epoch_ok: bool | None = None
     class_metrics: dict[str, dict[str, float]] = field(default_factory=dict)
     class_metrics_raw: dict[str, dict[str, float]] = field(default_factory=dict)
@@ -178,6 +187,34 @@ def _class_target_misses(
     return out
 
 
+def _bias_rule(
+    d_bias: float,
+    ci: tuple[float, float] | None,
+    g: GateConfig,
+    label: str,
+    *,
+    reasons: list[str],
+    notes: list[str],
+) -> None:
+    """Apply the |bias| rise rule (`GateConfig.bias_rise_test`, decision 0004)."""
+    limit = g.velocity_bias_rise_max_mm_yr
+    if g.bias_rise_test == "significant" and ci is not None:
+        fails = ci[0] > limit
+    else:
+        fails = d_bias > limit
+    ci_txt = f" [95% CI {ci[0]:+.2f}, {ci[1]:+.2f}]" if ci else ""
+    if fails:
+        reasons.append(
+            f"velocity |{label}| up {d_bias:+.2f} mm/yr{ci_txt} vs baseline"
+            f" (limit {limit:g})"
+        )
+    elif d_bias > limit:
+        notes.append(
+            f"velocity |{label}| up {d_bias:+.2f} mm/yr vs baseline, not"
+            f" significant{ci_txt} (decision 0004)"
+        )
+
+
 def evaluate(inputs: GateInputs, gate: GateConfig | None = None) -> GateResult:
     """Apply the gate (see the module docstring)."""
     g = gate or GateConfig()
@@ -218,11 +255,8 @@ def evaluate(inputs: GateInputs, gate: GateConfig | None = None) -> GateResult:
                 f"velocity RMSE up {d_rmse:+.2f} mm/yr vs baseline (limit"
                 f" {g.velocity_rmse_rise_max_mm_yr:g})"
             )
-        if d_bias > g.velocity_bias_rise_max_mm_yr:
-            reasons.append(
-                f"velocity |{label}| up {d_bias:+.2f} mm/yr vs baseline (limit"
-                f" {g.velocity_bias_rise_max_mm_yr:g})"
-            )
+        deltas["velocity_abs_bias_change_ci"] = inputs.bias_rise_ci
+        _bias_rule(d_bias, inputs.bias_rise_ci, g, label, reasons=reasons, notes=notes)
     if inputs.golden_epoch_ok is False:
         reasons.append("golden-epoch check failed")
 

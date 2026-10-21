@@ -38,7 +38,7 @@ from .gnss import (
     split_held_out,
     station_pixels,
 )
-from .metrics import double_differences, velocity_stats
+from .metrics import bias_rise_ci, double_differences, velocity_stats
 from .stack import Epoch, VelocityFit, list_epochs, stream_epochs
 
 __all__ = ["FrameInputs", "RunConfig", "load_run_config", "run_validation"]
@@ -393,6 +393,17 @@ def run_validation(  # noqa: PLR0912, PLR0915
             dd.change_pct("calibrated", "baseline")[1] if has_base else None
         ),
         velocity_baseline=velocity_gate["baseline"] if has_base else None,
+        bias_rise_ci=(
+            bias_rise_ci(
+                gated["pix::calibrated"].to_numpy() - gated["gps_los_mm_yr"].to_numpy(),
+                gated["pix::baseline"].to_numpy() - gated["gps_los_mm_yr"].to_numpy(),
+                gate_cfg.bias_statistic,
+                ci=gate_cfg.significance_ci,
+                seed=cfg.seed,
+            )
+            if has_base
+            else None
+        ),
         golden_epoch_ok=golden_ok,
         class_metrics=by_class.to_dict(orient="index"),
         class_metrics_raw=by_class_raw.to_dict(orient="index"),
