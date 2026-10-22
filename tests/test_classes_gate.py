@@ -339,3 +339,49 @@ def test_golden_epoch_check_wraps_the_cal_disp_cli(tmp_path, monkeypatch):
     assert not ok
     with pytest.raises(FileNotFoundError, match="not found"):
         golden_epoch_check("g", "t", executable="no-such-cal-disp")
+
+
+RISE = {"bias": 1.5, "median": 1.5, "rmse": 2.1}  # +0.5 vs BASE
+
+
+class TestBiasRiseTest:
+    """Decision 0004 (proposed): only a significant |bias| rise fails."""
+
+    def test_point_rule_is_the_default_and_unchanged(self):
+        assert GateConfig().bias_rise_test == "point"
+        r = evaluate(_inputs(velocity_candidate=RISE, bias_rise_ci=(-0.4, 0.9)))
+        assert not r.passed and "median bias| up +0.50" in r.reasons[0]
+        assert r.deltas["velocity_abs_bias_change_ci"] == (-0.4, 0.9)
+
+    def test_significant_rule_passes_an_uncertain_rise_with_a_note(self):
+        g = GateConfig(bias_rise_test="significant")
+        r = evaluate(_inputs(velocity_candidate=RISE, bias_rise_ci=(-0.4, 0.9)), g)
+        assert r.passed
+        assert any("not significant" in n for n in r.notes)
+
+    def test_significant_rule_fails_a_rise_above_the_limit(self):
+        g = GateConfig(bias_rise_test="significant")
+        r = evaluate(_inputs(velocity_candidate=RISE, bias_rise_ci=(0.3, 0.7)), g)
+        assert not r.passed and "95% CI +0.30, +0.70" in r.reasons[0]
+
+    def test_significant_rule_without_ci_falls_back_to_the_point_rule(self):
+        g = GateConfig(bias_rise_test="significant")
+        r = evaluate(_inputs(velocity_candidate=RISE), g)
+        assert not r.passed
+
+
+def test_bias_rise_ci_is_paired_and_covers_the_truth():
+    from disp2vlm_validation.metrics import bias_rise_ci
+
+    rng = np.random.default_rng(1)
+    noise = rng.normal(0, 2.0, 18)  # 18 stations, shared station noise
+    base = 0.5 + noise
+    cand = 1.0 + noise + rng.normal(0, 0.3, 18)  # true rise +0.5, little own noise
+    lo, hi = bias_rise_ci(cand, base)
+    assert lo < 0.5 < hi
+    assert hi - lo < 1.0  # paired: much narrower than the +-1 mm/yr of either median
+    lo2, hi2 = bias_rise_ci(cand, rng.permutation(base))  # unpaired is wider
+    assert (hi2 - lo2) > (hi - lo)
+    with pytest.raises(ValueError, match="paired"):
+        bias_rise_ci(cand, base[:5])
+    assert np.isnan(bias_rise_ci(cand[:2], base[:2])[0])
