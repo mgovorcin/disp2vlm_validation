@@ -1,9 +1,8 @@
 # 0004. The |bias| rise rule counts only a significant rise
 
-- **Status:** proposed (2026-10-21), for the owner. Implemented behind
-  `GateConfig.bias_rise_test` (`"point"` default = the v0.5 rule;
-  `"significant"` = this proposal); accepting it flips the default in
-  `requirements.GATE.bias_rise_test`.
+- **Status:** accepted (owner, 2026-10-21). `requirements.GATE.bias_rise_test`
+  is `"significant"`; `"point"` keeps the v0.5.0 rule for reproducing older
+  verdicts.
 - **Changes:** `requirements.GATE.bias_rise_test`, `gate.GateConfig.bias_rise_test`,
   `GateInputs.bias_rise_ci`, `metrics.bias_rise_ci`; the run reports the
   interval as `deltas.velocity_abs_bias_change_ci` in every comparison.
@@ -28,7 +27,7 @@ helps; revise the rule for this case).
 - Sampled as the 3x3-median around each station instead of the station pixel,
   the medians do not move (+0.42 → +0.40): the rise is single-pixel noise.
 
-## Decision (proposed)
+## Decision
 
 A |bias| rise fails only when the paired station-bootstrap interval of the
 change (`bootstrap_ci`, 95%) lies above `velocity_bias_rise_max_mm_yr`, i.e.

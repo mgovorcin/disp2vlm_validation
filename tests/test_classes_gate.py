@@ -347,9 +347,12 @@ RISE = {"bias": 1.5, "median": 1.5, "rmse": 2.1}  # +0.5 vs BASE
 class TestBiasRiseTest:
     """Decision 0004 (proposed): only a significant |bias| rise fails."""
 
-    def test_point_rule_is_the_default_and_unchanged(self):
-        assert GateConfig().bias_rise_test == "point"
-        r = evaluate(_inputs(velocity_candidate=RISE, bias_rise_ci=(-0.4, 0.9)))
+    def test_significant_is_the_default_and_point_keeps_the_old_rule(self):
+        assert GateConfig().bias_rise_test == "significant"
+        r = evaluate(
+            _inputs(velocity_candidate=RISE, bias_rise_ci=(-0.4, 0.9)),
+            GateConfig(bias_rise_test="point"),
+        )
         assert not r.passed and "median bias| up +0.50" in r.reasons[0]
         assert r.deltas["velocity_abs_bias_change_ci"] == (-0.4, 0.9)
 
