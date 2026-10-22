@@ -90,9 +90,9 @@ class GateConfig(BaseModel):
     bias_rise_test: Literal["point", "significant"] = Field(
         default=GATE.bias_rise_test,  # type: ignore[arg-type]
         description=(
-            "'point': FAIL when the |bias| rise exceeds the limit (v0.5 rule). "
-            "'significant': FAIL only when the paired station-bootstrap interval "
-            "of the rise lies above the limit (decision 0004, proposed)."
+            "'significant' (default, decision 0004): FAIL only when the paired "
+            "station-bootstrap interval of the |bias| rise lies above the limit. "
+            "'point': FAIL when the point rise exceeds it (the v0.5.0 rule)."
         ),
     )
     velocity_excluded_classes: list[str] = Field(

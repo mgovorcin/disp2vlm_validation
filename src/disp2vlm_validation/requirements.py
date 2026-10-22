@@ -40,8 +40,8 @@ class GateThresholds:
         ``"point"``: the |bias| rise rule compares the point change with
         `velocity_bias_rise_max_mm_yr`. ``"significant"``: only a rise whose
         paired station-bootstrap interval lies above the limit fails
-        (decision 0004, proposed; a median of ~20 stations is itself
-        uncertain by ~1 mm/yr).
+        (decision 0004, accepted 2026-10-21; a median of ~20 stations is
+        itself uncertain by ~1 mm/yr). Default ``"significant"``.
     target_abs_bias_mm_yr : float
         Release target per frame (reported, not a pass/fail condition), on
         the same bias statistic.
@@ -61,7 +61,7 @@ class GateThresholds:
     velocity_rmse_rise_max_mm_yr: float = 0.2
     velocity_bias_rise_max_mm_yr: float = 0.2
     bias_statistic: str = "median"
-    bias_rise_test: str = "point"
+    bias_rise_test: str = "significant"
     target_abs_bias_mm_yr: float = 1.0
     bootstrap_ci: float = 0.95
     velocity_excluded_classes: tuple[str, ...] = ("defo_area", "near_event")
