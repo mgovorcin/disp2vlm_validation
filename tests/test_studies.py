@@ -233,3 +233,36 @@ def test_ts_e4_extrapolated_splits_by_the_older_sigma():
     out = ts.split_realism(long, ext, 10.0)
     assert (out["fitted"]["station_pairs"], out["extrapolated"]["stations"]) == (1, 1)
     assert out["extrapolated"]["median_abs_residual_mm"] == 20.0
+
+
+def test_ts_u2_finds_persistent_steps_not_seasonal_signal():
+    ts = _load("ts_u2")
+    rng = np.random.default_rng(0)
+    n, ny, nx = 120, 40, 40
+    t = np.arange(n) * 12 / 365.25
+    s = np.cumsum(rng.normal(0, 0.0006, (n, ny, nx)), axis=0).astype(np.float32)
+    s += (-0.02 * t)[:, None, None]  # 2 cm/yr subsidence
+    seasonal = ts.CYCLE_M * 1.1 * np.sin(2 * np.pi * t)
+    s[:, :, 25:] += seasonal[:, None, None]  # ~1-cycle seasonal signal
+    s[50:, 10:20, 5:20] -= 2 * ts.CYCLE_M  # persistent -2 cycles at epoch 50
+    s[70:, 30:36, 2:10] += ts.CYCLE_M  # persistent +1 at epoch 70
+    k, e = ts.detect_steps(s, t)
+    regs = ts.step_regions(k, e)
+    assert any(
+        r["k"] == -2 and abs(r["epoch"] - 50) <= 2 and r["cells"] >= 140 for r in regs
+    )
+    assert any(
+        r["k"] == 1 and abs(r["epoch"] - 70) <= 2 and r["cells"] >= 44 for r in regs
+    )
+    assert (k[:, 25:] != 0).sum() == 0  # the seasonal signal reverts: never labelled
+
+
+def test_ts_u2_residual_ratio():
+    ts = _load("ts_u2")
+    res = np.full((20, 20), 1e-3)
+    res[5:8, 5:8] = 0.5
+    m = np.zeros((20, 20), dtype=bool)
+    m[5:8, 5:8] = True
+    assert ts.residual_ratio(res, m) == pytest.approx(500.0)
+    assert ts.residual_ratio(res, np.zeros_like(m)) is None
+    assert ts.residual_ratio(np.zeros((4, 4)), np.ones((4, 4), bool)) is None
