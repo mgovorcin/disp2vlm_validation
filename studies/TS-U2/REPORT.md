@@ -40,7 +40,8 @@ signal of 1.1 cycles amplitude is never labelled.
   2022-12. They are not at ministack boundaries: 26% of step cells sit within
   one epoch of a boundary, against ~20% by chance.
 
-**The inversion residual separates the two populations**, almost bimodally:
+**The inversion residual looked like it separated the two populations**
+(almost bimodal), **but the visual check below shows it does not**:
 
 | example region | cells | residual / frame median |
 |---|---|---|
@@ -65,21 +66,37 @@ signal of 1.1 cycles amplitude is never labelled.
   in the calibrated series: it drifts slowly from +1.3 to +2.1 cycles over
   2020–2022, which reads as a rate error, not unwrapping.
 
+## Visual check (2026-10-23): the residual ratio is not a reliable label
+
+Six random regions ≥ 20 cells from each class (`sample_check_F08882.png`:
+region vs surroundings, detrended, and the residual map at the step epoch):
+
+- **High ratio (≥ 30):** four are clear sharp whole-cycle steps against the
+  surroundings (2017-07-12 +1 twice, 2021-07-27 −1, 2021-07-15 +1); two are
+  gradual divergence, i.e. local deformation, not unwrapping (2022-06-16,
+  2017-09-10).
+- **Low ratio (< 3):** four are equally clear sharp steps (2021-07-03 +1 twice,
+  2022-04-17 −1, 2019-07-14 −1); the others are gradual deformation.
+
+So the residual ratio neither excludes deformation nor catches every step,
+and the counts above (231 regions at ratio ≥ 30) are **not** a truth set.
+What separates the cases by eye is **sharpness against the surroundings**:
+an unwrap error is a k-cycle jump of region − surroundings within one or two
+epochs that persists; deformation diverges gradually.
+
 ## What it means for T62
 
-- **Houston alone can supply ≥ 100 labelled cases** (231 regions ≥ 0.65 km²
-  at residual ratio ≥ 30), enough to score a correction against the PRD bar.
-  Labels at ratio < 3 are coherent signal: never correct them.
-- **Not yet labels for scoring:** a hold-out check on a second frame, and a
-  manual look at a sample of each population (maps of the step and residual),
-  should come before T62.2 uses them.
+- The labeller needs a differential test (cell − local ring) with a sharpness
+  condition (the jump within ≤ 2 epochs) before the counts mean anything;
+  then a second visual check, and a second frame (LA, F16940).
+- Galveston: TXGA's −1 (2022-07) is a step; TDAM's −2 (2021-07) is not one in
+  the calibrated series (slow drift).
 
 ## Next (T62.2, T62.3)
 
-1. Sample-check ~20 regions of each class by eye; run the labeller on a
-   second frame (LA, F16940).
-2. Extend the estimator (T36) to non-water regions and score it on these
-   labels.
+1. Differential + sharpness labeller; visual check of both classes again;
+   LA as the second frame.
+2. Extend the estimator (T36) to non-water regions and score it on the labels.
 3. Report and the owner's decision on enabling inland correction.
 
 ## Reproduce
