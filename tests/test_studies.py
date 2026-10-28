@@ -235,34 +235,53 @@ def test_ts_e4_extrapolated_splits_by_the_older_sigma():
     assert out["extrapolated"]["median_abs_residual_mm"] == 20.0
 
 
-def test_ts_u2_finds_persistent_steps_not_seasonal_signal():
-    ts = _load("ts_u2")
-    rng = np.random.default_rng(0)
-    n, ny, nx = 120, 40, 40
-    t = np.arange(n) * 12 / 365.25
-    s = np.cumsum(rng.normal(0, 0.0006, (n, ny, nx)), axis=0).astype(np.float32)
-    s += (-0.02 * t)[:, None, None]  # 2 cm/yr subsidence
-    seasonal = ts.CYCLE_M * 1.1 * np.sin(2 * np.pi * t)
-    s[:, :, 25:] += seasonal[:, None, None]  # ~1-cycle seasonal signal
-    s[50:, 10:20, 5:20] -= 2 * ts.CYCLE_M  # persistent -2 cycles at epoch 50
-    s[70:, 30:36, 2:10] += ts.CYCLE_M  # persistent +1 at epoch 70
-    k, e = ts.detect_steps(s, t)
-    regs = ts.step_regions(k, e)
-    assert any(
-        r["k"] == -2 and abs(r["epoch"] - 50) <= 2 and r["cells"] >= 140 for r in regs
-    )
-    assert any(
-        r["k"] == 1 and abs(r["epoch"] - 70) <= 2 and r["cells"] >= 44 for r in regs
-    )
-    assert (k[:, 25:] != 0).sum() == 0  # the seasonal signal reverts: never labelled
+def _rel(n=200, seed=0, noise=0.05):
+    rng = np.random.default_rng(seed)
+    return rng.normal(0, noise, n)
 
 
-def test_ts_u2_residual_ratio():
+def test_ts_u2_removes_a_staircase_of_slips():
     ts = _load("ts_u2")
-    res = np.full((20, 20), 1e-3)
-    res[5:8, 5:8] = 0.5
-    m = np.zeros((20, 20), dtype=bool)
-    m[5:8, 5:8] = True
-    assert ts.residual_ratio(res, m) == pytest.approx(500.0)
-    assert ts.residual_ratio(res, np.zeros_like(m)) is None
-    assert ts.residual_ratio(np.zeros((4, 4)), np.ones((4, 4), bool)) is None
+    rel = _rel()
+    for i in (40, 90, 140):
+        rel[i:] += 0.8  # disconnected region slips ~one cycle a year
+    flag = np.ones(rel.size, bool)
+    cor, slips = ts.remove_slips(rel, flag)
+    assert len(slips) == 3
+    assert np.abs((rel - cor)[150:]).mean() < 0.1
+
+
+def test_ts_u2_removes_a_dip_with_its_recovery():
+    ts = _load("ts_u2")
+    rel = _rel(seed=1)
+    rel[60:90] -= 0.6  # temporary excursion that recovers
+    flag = np.ones(rel.size, bool)
+    cor, slips = ts.remove_slips(rel, flag)
+    assert len(slips) == 2 and slips[0][1] < 0 < slips[1][1]
+    assert np.abs(rel - cor).max() < 0.3  # no false drift left
+
+
+def test_ts_u2_leaves_gradual_drift_alone():
+    ts = _load("ts_u2")
+    rel = _rel(seed=2) + np.linspace(0, -2.0, 200)  # barrier island drift, no steps
+    cor, slips = ts.remove_slips(rel, np.ones(200, bool))
+    assert slips == [] and not cor.any()
+
+
+def test_ts_u2_removes_a_block_offset_including_its_exit():
+    ts = _load("ts_u2")
+    rel = _rel(seed=3)
+    rel[75:120] += 0.6  # one ministack disconnected
+    flag = np.zeros(200, bool)
+    flag[75:120] = True  # the exit epoch (120) is not flagged itself
+    cor, slips = ts.remove_slips(rel, flag)
+    assert [s[0] for s in slips] == [75, 120]
+    assert np.abs(rel - cor).max() < 0.3
+
+
+def test_ts_u2_region_flags():
+    ts = _load("ts_u2")
+    f = ts.region_flags(
+        np.array([-5.0, -2.0, 1.0, np.nan]), np.array([-5.0, -5.0, -5.0, -5.0])
+    )
+    assert f.tolist() == [False, True, True, False]

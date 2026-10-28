@@ -1,111 +1,126 @@
-# TS-U2: labelling inland unwrap errors (TS-U1 phase 2, Venti plan T62.1)
+# TS-U2: unwrapping offsets of water-separated regions (TS-U1 phase 2, Venti plan T62)
 
-**Status:** T62.1 on Houston (F08882), 2026-10-23. Analysis only; the
-unwrap-error correction stays off (owner, 2026-10-09).
+**Status:** 2026-10-27. Analysis only. The owner keeps the residual-guided
+decision **out of the calibration for now** (2026-10-27), and unwrap-error
+correction stays off (2026-10-09).
 
-## Why
+## Summary
 
-TS-U1 phase 1 found 2 labelled error blocks at Galveston stations; the PRD bar
-for enabling the correction is precision ≥ 0.99 and recall ≥ 0.8 on ≥ 100
-cases. This study builds labels from the whole calibrated stack instead of
-from stations.
+1. **In DISP output, an unwrapping error is a fractional offset of a whole
+   region, not a whole-cycle step.**
+   - The time-series inversion spreads an error in one interferogram.
+   - The region's displacement shifts by a fraction of a cycle (0.3–0.9).
+   - The product's `timeseries_inversion_residuals` rises over that region
+     (owner, 2026-10-23).
+2. **It happens on disconnected land:** islands, peninsulas, the far shore of
+   a bay.
+   - The median residual of a water-separated region, against the mainland,
+     separates three cases on every frame:
+     - **consistent:** tracks the mainland;
+     - **permanently disconnected:** lifted 2–7 orders in > 90% of epochs;
+     - **episodic:** lifted in some epochs, or in whole ministacks.
+   - Inland, residual plateaus ≥ 10 km² carry tiny offsets (median 1.4 mm).
+     Small patches can be real ground motion (owner, 2026-10-24).
+3. **A residual-guided correction works on the regions that need it and
+   leaves the others alone.** It removes sharp slips at flagged epochs, plus
+   their recoveries. Results (per-area figures `islandfix_*.png`):
 
-## Method (`studies/ts_u2.py`)
-
-Input: the chained calibrated displacement (DISP − CAL) of F08882, 205 epochs
-2016–2023, the release calibration (v0.5; values unchanged through v0.5.4 for
-this frame), averaged to 180 m cells (the calibration fit grid), 1.19 M cells.
-
-1. **Persistent whole-cycle step.** Remove each cell's rate (median of the
-   epoch-to-epoch rates, so a step does not bias it). At epoch i, the median
-   over 15 epochs (~6 months) after minus the median over 15 before must be
-   within 0.2 of a non-zero whole number of cycles (λ/2 = 27.7 mm); the
-   5-epoch step must agree; and the level must not revert over the next 15
-   epochs.
-2. **Regions:** connected cells with the same k and a step epoch within ±2.
-3. **Inversion residual:** the region's median |`timeseries_inversion_residuals`|
-   in the DISP product of the step epoch over the frame median.
-
-Synthetic test: a planted −2 and +1 step are recovered in full; a seasonal
-signal of 1.1 cycles amplitude is never labelled.
-
-## Results (F08882)
-
-**A step test alone does not identify unwrap errors.**
-
-- A short-window step test labels 40% of the frame, mostly +1 in summer.
-- With persistence, 20% of cells still show persistent whole-cycle steps
-  (4,491 regions).
-- They cluster on a few summer dates across the frame: 2017-06-30, 2019-07,
-  2022-12. They are not at ministack boundaries: 26% of step cells sit within
-  one epoch of a boundary, against ~20% by chance.
-
-**The inversion residual looked like it separated the two populations**
-(almost bimodal), **but the visual check below shows it does not**:
-
-| example region | cells | residual / frame median |
+| area (frame) | region | effect |
 |---|---|---|
-| 2021-06-21 +1 | 553 | 0.4 |
-| 2020-06-02 −1 | 270 | 0.9 |
-| 2019-10-06 +1 | 254 | 0.1 |
-| 2019-07-02 +1 | 237 | 88 |
-| 2019-07-26 −1 | 235 | 2,170 |
-| 2019-07-14 +1 | 230 | 21 |
-| **Galveston 2022-07-22 −1** (by TXGA, GAL2, GAL7) | 14 | **212** |
+| Chesapeake (F00834) | 24.7 km² in the bay | −12-cycle staircase (≈ 330 mm) removed; its −20 mm/yr anomaly gone |
+| Chesapeake | 6,283 km² across the bay | 2019–20 dip removed, no new drift; < 0.25 mm/yr velocity change |
+| Houston (F08882) | Bolivar Peninsula, 85 km² | 4.9 of 9 cycles of summer slips removed; ~4 cycles of smooth rise remain (no GNSS to judge) |
+| SW Florida (F12637) | Lower Keys | disconnected in whole ministacks (7 of 18); +0.5-cycle block offset removed on region 16; the rest only drift |
+| E Florida (F40026) | barrier islands | one step; −6 mm/yr gradual drift kept; the 338 km² Cape region is empty in the calibrated product |
+| LA (F16940) | Catalina, San Clemente | nothing: GNSS + `regions: separate` keep them on the mainland |
+| Houston | Galveston | nothing: consistent with the mainland |
 
-| residual / frame median | regions | regions ≥ 20 cells (≥ 0.65 km²) |
-|---|---|---|
-| ≥ 3 | 2,651 | 299 |
-| ≥ 10 | 2,362 | 266 |
-| ≥ 30 | 2,132 | 231 |
+## Survey: median residual per water-separated region
 
-- **Not decorrelation.** High-residual regions (≥ 30) have a median temporal
-  coherence of 0.38, low-residual ones 0.43; the frame median is 0.44.
-- **Galveston:** TS-U1's TXGA −1 (2022-07) is recovered: GAL2/GAL7 −1 on
-  2022-07-22 with a residual ratio of 212. TDAM's −2 (2021-07) is not a step
-  in the calibrated series: it drifts slowly from +1.3 to +2.1 cycles over
-  2020–2022, which reads as a rate error, not unwrapping.
+Median log10 |inversion residual| per region and epoch, minus the reference
+region's (the land region with the most valid DISP; in SW Florida the largest
+region, the Everglades, has no DISP at all). Classes by the share of epochs
+lifted ≥ 2 orders: consistent < 5%, episodic 5–90%, permanent > 90%.
 
-## Visual check (2026-10-23): the residual ratio is not a reliable label
+| frame | area | regions | consistent | episodic | permanent | `regions` in frame table (0.8) |
+|---|---|---|---|---|---|---|
+| F00834 | Baltimore / DC, Chesapeake | 12 | 1 | 3 | 8 (incl. 6,283 km²) | none (venti-dev #51 adds it) |
+| F00831 | Outer Banks | 19 | 7 | 6 | 6 (707 km²) | none (#51) |
+| F40026 | E Florida | 6 | 0 | 5 | 1 (338 km²) | none |
+| F38238 | Houston desc | 4 | 0 | 1 | 3 | none |
+| F08622 | New York | 19 | 9 | 10 | 0 | none |
+| F08882 | Houston asc | 8 | 1 | 5 | 2 | separate |
+| F16940 / F18904 | Los Angeles | 3 | 1 | 0 | 2 | separate |
+| F35991 | Puerto Rico | 1 | 0 | 1 | 0 | separate |
+| F12637 | SW Florida, Keys | 27 | (Lower Keys disconnected in whole ministacks) | | | none |
+| F36008 | Long Island Sound | 22 | 22 | 0 | 0 | none (#51) |
 
-Six random regions ≥ 20 cells from each class (`sample_check_F08882.png`:
-region vs surroundings, detrended, and the residual map at the step epoch):
+Frames without water-separated regions: F07081, F08886, F16941, F23211, F36542.
 
-- **High ratio (≥ 30):** four are clear sharp whole-cycle steps against the
-  surroundings (2017-07-12 +1 twice, 2021-07-27 −1, 2021-07-15 +1); two are
-  gradual divergence, i.e. local deformation, not unwrapping (2022-06-16,
-  2017-09-10).
-- **Low ratio (< 3):** four are equally clear sharp steps (2021-07-03 +1 twice,
-  2022-04-17 −1, 2019-07-14 −1); the others are gradual deformation.
+The mainland residual itself has two features:
+- a sawtooth with each ministack;
+- one frame-wide lift in Aug–Oct 2017 (Hurricane Harvey).
 
-So the residual ratio neither excludes deformation nor catches every step,
-and the counts above (231 regions at ratio ≥ 30) are **not** a truth set.
-What separates the cases by eye is **sharpness against the surroundings**:
-an unwrap error is a k-cycle jump of region − surroundings within one or two
-epochs that persists; deformation diverges gradually.
+`island_residuals_*.png` shows the series.
 
-## What it means for T62
+## Why a region still slips with `regions: separate`
 
-- The labeller needs a differential test (cell − local ring) with a sharpness
-  condition (the jump within ≤ 2 epochs) before the counts mean anything;
-  then a second visual check, and a second frame (LA, F16940).
-- Galveston: TXGA's −1 (2022-07) is a step; TDAM's −2 (2021-07) is not one in
-  the calibrated series (slow drift).
+The calibration gives each non-mainland region its own per-epoch offset only
+when it has ≥ `region_min_pixels` usable pixels. Bolivar decorrelates every
+summer, so its offset is skipped in exactly the epochs where it slips. The
+inversion residual flags it in 200 of 205 epochs. A region decision based on
+the residual, instead of the valid-pixel count, would address this at the
+source. **Not adopted** (owner, 2026-10-27).
 
-## Next (T62.2, T62.3)
+## Correction method (`studies/ts_u2.py`)
 
-1. Differential + sharpness labeller; visual check of both classes again;
-   LA as the second frame.
-2. Extend the estimator (T36) to non-water regions and score it on the labels.
-3. Report and the owner's decision on enabling inland correction.
+- **Region flag:** median log10 residual ≥ 2 orders above the reference.
+- **Region-minus-reference series** (cycles) on the chained calibrated stack
+  (180 m). For offshore islands the reference is the mainland coastal band.
+- **Slips:**
+  - A 5-epoch median step ≥ 0.5 cycle and ≥ 3σ of the region's own
+    epoch-to-epoch noise.
+  - It must sit at a flagged epoch or one bordering a flagged run (the exit of
+    a disconnected ministack).
+  - It is placed on the sharpest single-epoch jump and removed by its own
+    size.
+  - An opposite step ≥ 0.25 within 60 epochs is removed with it (a dip and
+    its recovery).
+- **Tests:** a staircase is removed, a dip with its recovery is removed, drift
+  is untouched, and a block offset is removed including its unflagged exit.
+
+**What did not work** (on these frames, kept for the record):
+
+| attempt | failure |
+|---|---|
+| greedy step removal (5-epoch persistence) | removed one edge of a dip only: false drift (Chesapeake) |
+| 1-year persistence | missed staircases whose slips recur yearly (Bolivar: 0 removed) |
+| joint piecewise-constant segmentation | cut gradual drift into steps and removed real motion (E Florida −6.7 cycles) |
+| segment-level sharpness ratio | rejected every staircase split |
+| inland residual plateaus (any size) | small patches are ground signal; ≥ 10 km² plateaus carry ~1 mm offsets |
+| whole-cycle step detection, residual magnitude ratio (earlier TS-U2) | wrong model: offsets are fractional |
+
+## Recommendations
+
+1. **Frame table:** `regions: separate` where the survey finds permanently
+   disconnected regions and GNSS validation agrees. Chesapeake, Outer Banks
+   and Long Island are in venti-dev #51. E Florida and Houston descending need
+   validation first.
+2. **The residual is a diagnostic of disconnected regions** for any unlisted
+   frame. A check that warns when a frame without `regions` has a
+   permanently disconnected region would have caught F18904 (LA descending).
+3. **Correction in the calibration:** off (owner). Revisit with GNSS truth on
+   a disconnected region without its own station (Bolivar has none).
 
 ## Reproduce
 
 ```bash
 python studies/ts_u2.py --stack F08882_cum_ds6.npy --meta F08882_cum_ds6.json \
-    --disp-dir FRAME/disp_s1 --out-dir OUT
+    --disp-dir FRAME/disp_s1 --out regions.json
 ```
 
-The stack is built with `opera_vlm.stack.GeometryStack.read_cumulative` from
-the DISP and DISP-CAL products, averaged 6×6
-(`cal_disp_e2e/t62/F08882_cum_ds6.npy`).
+The stack is `opera_vlm.stack.GeometryStack.read_cumulative` of the DISP and
+DISP-CAL products averaged 6×6 (`cal_disp_e2e/t62/*_cum_ds6.npy`). The figures
+were made with the prototype scripts behind `cal_disp_e2e/t62/maps/`. That
+version placed a slip within ±2 epochs of the sharpest jump; `ts_u2.py` places
+it on it.
