@@ -46,7 +46,7 @@ lifted ≥ 2 orders: consistent < 5%, episodic 5–90%, permanent > 90%.
 |---|---|---|---|---|---|---|
 | F00834 | Baltimore / DC, Chesapeake | 12 | 1 | 3 | 8 (incl. 6,283 km²) | none (venti-dev #51 adds it) |
 | F00831 | Outer Banks | 19 | 7 | 6 | 6 (707 km²) | none (#51) |
-| F40026 | E Florida | 6 | 0 | 5 | 1 (338 km²) | none |
+| F40026 | E Florida | 6 | 0 | 5 | 1 (338 km²) | none (checked, not added) |
 | F38238 | Houston desc | 4 | 0 | 1 | 3 | none (validated, not added) |
 | F08622 | New York | 19 | 9 | 10 | 0 | none |
 | F08882 | Houston asc | 8 | 1 | 5 | 2 | separate |
@@ -104,8 +104,8 @@ source. **Not adopted** (owner, 2026-10-27).
 
 1. **Frame table:** `regions: separate` where the survey finds permanently
    disconnected regions and GNSS validation agrees. Chesapeake, Outer Banks
-   and Long Island are in venti-dev #51. E Florida needs validation first.
-   Houston descending was validated and gets no entry yet (below).
+   and Long Island are in venti-dev #51. Houston descending and E Florida
+   were checked and get no entry (below).
 2. **The residual is a diagnostic of disconnected regions** for any unlisted
    frame. A check that warns when a frame without `regions` has a
    permanently disconnected region would have caught F18904 (LA descending).
@@ -141,6 +141,21 @@ Figure: `F38238_regions_vs_release.png`.
 **Recommendation: no frame-table entry for F38238 for now.** The islets are
 too small to matter, and the inland re-leveling is supported by one station.
 The NE block around XDHS is worth a look on its own.
+
+## E Florida (F40026) with `regions: separate`
+
+The Gulf/East batch campaign already ran F40026 with and without `regions`
+(254 epochs, cal-disp v0.5.2 batch image, `gulf_east_val/F40026`).
+
+- **The frame has only 3 GNSS stations**, too few for a DD sill. The gate fails
+  on station count with or without `regions`, so GNSS cannot decide it.
+- **On those 3 stations, `regions` does not help.** Velocity RMSE goes from
+  5.84 to 5.98 mm/yr and the median from −5.62 to −5.52. `regions: all` gives
+  the same numbers.
+- **The 338 km² permanently disconnected region is empty** in the calibrated
+  product, so a separate offset has nothing to act on.
+
+**Recommendation: no frame-table entry for F40026.**
 
 ## Reproduce
 
