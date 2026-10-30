@@ -285,3 +285,62 @@ def test_ts_u2_region_flags():
         np.array([-5.0, -2.0, 1.0, np.nan]), np.array([-5.0, -5.0, -5.0, -5.0])
     )
     assert f.tolist() == [False, True, True, False]
+
+
+def test_edge_cases_outside_station_change_asserts_far_stations_only():
+    """A station next to the area may move; far stations must stay < 0.5 mm/yr."""
+    from shapely.geometry import box
+
+    ec = _load("edge_cases")
+    area = box(-120.0, 36.0, -119.8, 36.2)
+    st = pd.DataFrame(
+        {
+            "lon": [-119.9, -119.79, -119.0, -118.0],  # inside, ~1 km, ~70 km, ~160 km
+            "lat": [36.1, 36.1, 36.1, 36.1],
+            "med::calibrated": [-50.0, -5.0, 1.0, 2.0],
+        },
+        index=pd.Index(["IN", "EDGE", "FAR1", "FAR2"], name="station"),
+    )
+    moved = st.copy()
+    moved["med::calibrated"] = [-80.0, -1.0, 1.2, 2.1]
+    res = ec.outside_station_change(st, moved, [area])
+    assert res["passed"] and res["n_asserted"] == 2 and res["n_inside"] == 1
+    assert res["max_abs_change"] == pytest.approx(0.2)
+    moved.loc["FAR2", "med::calibrated"] = 3.0
+    assert not ec.outside_station_change(st, moved, [area])["passed"]
+
+
+def test_edge_cases_step_across_rupture_finds_a_step_and_ignores_a_ramp():
+    from pyproj import CRS
+
+    ec = _load("edge_cases")
+    crs = CRS.from_epsg(32611)
+    event = {
+        "epicentre": [-117.6, 35.77],
+        "strike_deg": 320.0,
+        "rupture_length_km": 50.0,
+    }
+    line = ec.rupture_line(event)
+    tr = __import__("pyproj").Transformer.from_crs(4326, crs, always_xy=True)
+    cx, cy = tr.transform(-117.6, 35.77)
+    x = cx + np.arange(-30_000, 30_000, 200.0)
+    y = cy + np.arange(30_000, -30_000, -200.0)
+    xx, yy = np.meshgrid(x, y)
+    ramp = 1e-7 * (xx - cx) + 2e-7 * (yy - cy)  # smooth surface, metres
+    assert abs(ec.step_across_rupture(ramp, x, y, crs, line)) < 1e-4  # slope, no jump
+    (x0, y0), (x1, y1) = (tr.transform(*c) for c in line.coords)
+    side = np.sign((xx - x0) * (y1 - y0) - (yy - y0) * (x1 - x0))  # side of the trace
+    stepped = ramp + 0.005 * side  # +-5 mm either side of the trace
+    assert abs(ec.step_across_rupture(stepped, x, y, crs, line)) == pytest.approx(
+        0.01, abs=2e-4
+    )
+
+
+def test_edge_cases_spans_and_identical():
+    ec = _load("edge_cases")
+    t0 = datetime(2019, 7, 6, 3, 19)
+    assert ec.spans("20190529_20190710", t0)
+    assert not ec.spans("20190529_20190628", t0)
+    assert not ec.spans("20190710_20190722", t0)
+    a = np.array([1.0, np.nan])
+    assert ec.identical(a, a.copy()) and not ec.identical(a, np.array([1.0, 2.0]))
