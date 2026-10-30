@@ -388,3 +388,17 @@ def test_bias_rise_ci_is_paired_and_covers_the_truth():
     with pytest.raises(ValueError, match="paired"):
         bias_rise_ci(cand, base[:5])
     assert np.isnan(bias_rise_ci(cand[:2], base[:2])[0])
+
+
+def test_overlap_years_clips_to_the_stack():
+    """Years of the GNSS record inside the stack; zero when it misses the stack."""
+    from disp2vlm_validation.gnss import overlap_years
+
+    first = pd.Series(["2010-01-01", "2020-01-01", "2024-06-01", "2005-01-01"])
+    last = pd.Series(["2030-01-01", "2021-01-01", "2026-01-01", "2012-01-01"])
+    got = overlap_years(
+        first, last, pd.Timestamp("2016-07-01"), pd.Timestamp("2023-11-01")
+    )
+    assert got[0] == pytest.approx(7.34, abs=0.01)
+    assert got[1] == pytest.approx(1.0, abs=0.01)
+    assert got[2] == 0.0 and got[3] == 0.0

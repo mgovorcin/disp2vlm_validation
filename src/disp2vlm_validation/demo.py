@@ -137,6 +137,8 @@ def make_demo_frame(root: Path | str, seed: int = 1) -> Path:
             "sigma_ve_mm_yr": 0.3,
             "sigma_vn_mm_yr": 0.3,
             "sigma_vu_mm_yr": 0.5,
+            "first": dates[0].date(),
+            "last": dates[-1].date(),
         }
         for day in dates:
             up = vu / 1000.0 * (day - t0).days / 365.25 + rng.normal(0, 0.001)

@@ -29,6 +29,7 @@ disp2vlm-validation: CalVal release gate
   target_abs_bias_mm_yr          1.0
   bootstrap_ci                   0.95
   velocity_excluded_classes      ('defo_area', 'near_event')
+  velocity_min_overlap_years     3.0
   independent_gnss_only          True
 benchmark frames:
   ...
