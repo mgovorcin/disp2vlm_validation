@@ -49,6 +49,7 @@ nav:
           - 0002 Velocity rules: decisions/0002-velocity-gate-outside-deforming-areas.md
           - 0003 VLM gate: decisions/0003-vlm-gate.md
           - 0004 Significant bias rise: decisions/0004-significant-bias-rise.md
+          - 0005 Stations overlap the stack: decisions/0005-velocity-stations-overlap-the-stack.md
       - Trade studies: record/studies.md
       - Baselines: baselines.md
       - v0.5 CalVal report: vnv/v0.5-calval-report.md

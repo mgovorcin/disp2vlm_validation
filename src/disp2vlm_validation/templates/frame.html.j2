@@ -29,7 +29,8 @@ datum-free). Calibration must lower it. 95% intervals: station bootstrap, paired
 {% for name in ['calibrated', 'raw', 'baseline'] %}{% if name in m.velocity_los_gate %}{% set s = m.velocity_los_gate[name] %}<tr><td>{{ name }}</td><td>{{ s.n }}</td><td>{{ sg(s.bias, 2) }}</td><td>{{ sg(s.median, 2) }}</td>
 <td>{{ f(s.rmse, 2) }}</td><td>{{ f(s.std, 2) }}</td><td>{{ f(s.nmad, 2) }}</td><td>{{ f(s.r2, 3) }}</td></tr>{% endif %}{% endfor %}</table>
 <p class="muted">Gated stations: all but the classes {{ m.velocity_los_gate.excluded_classes | join(', ') or 'none' }} ({{ m.velocity_los_gate.n_excluded }} left out; decision 0002). Deforming areas and events are restored, not calibrated; they are reported per class below.</p>{% endif %}
-<p class="muted">mm/yr. "bias" is the mean residual, "median" the median one; the gate and the release target use the {{ 'median' if m.deltas.bias_statistic != 'mean' else 'mean' }} (decision 0001). Raw is referenced to one pixel, so its bias depends on that pixel; compare its std, NMAD and r².</p>
+{% if m.short_overlap_stations %}<p class="muted">{{ m.short_overlap_stations | length }} stations with less than {{ f(m.velocity_min_overlap_years, 1) }} years of GNSS within the stack are left out of the velocity statistics (decision 0005): {{ m.short_overlap_stations | join(', ') }}.</p>
+{% endif %}<p class="muted">mm/yr. "bias" is the mean residual, "median" the median one; the gate and the release target use the {{ 'median' if m.deltas.bias_statistic != 'mean' else 'mean' }} (decision 0001). Raw is referenced to one pixel, so its bias depends on that pixel; compare its std, NMAD and r².</p>
 <figure><img src="figures/velocity_scatter.svg" alt="InSAR against GNSS velocity at the stations"></figure>
 <details><summary>Station data</summary>{{ st_table }}</details>
 

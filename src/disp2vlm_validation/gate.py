@@ -99,6 +99,13 @@ class GateConfig(BaseModel):
         default_factory=lambda: list(GATE.velocity_excluded_classes),
         description="Station classes left out of the velocity rules (decision 0002)",
     )
+    velocity_min_overlap_years: float = Field(
+        default=GATE.velocity_min_overlap_years,
+        description=(
+            "Stations whose GNSS record overlaps the stack by less than this "
+            "(years) are left out of the velocity statistics (decision 0005)"
+        ),
+    )
     per_class_targets: dict[str, ClassTarget] = Field(default_factory=dict)
 
     model_config = {"extra": "forbid"}

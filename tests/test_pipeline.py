@@ -12,6 +12,7 @@ read from a pre-filled cache, so nothing touches the network.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -197,6 +198,31 @@ def test_velocity_gate_leaves_out_deforming_areas(frame, tmp_path):
         cfg.model_copy(update={"gate": yaml_path, "out_dir": tmp_path / "all"})
     )
     assert m_all["velocity_los_gate"]["n_excluded"] == 0
+
+
+def test_velocity_leaves_out_stations_without_overlap(frame, tmp_path):
+    """Decision 0005: a GNSS record that misses the stack does not score it."""
+    cache = tmp_path / "cache"
+    shutil.copytree(frame / "cache", cache)
+    midas = pd.read_csv(cache / "gnss_midas_enu.csv", index_col=0)
+    midas.loc["G000", ["first", "last"]] = ["2005-01-01", "2012-01-01"]  # ended before
+    midas.loc["G001", ["first", "last"]] = ["2030-01-01", "2033-01-01"]  # after
+    midas.to_csv(cache / "gnss_midas_enu.csv")
+    cfg = _cfg(frame, "perfect", "overlap")
+    cfg = cfg.model_copy(
+        update={"frame": cfg.frame.model_copy(update={"cache_dir": cache})}
+    )
+    m = run_validation(cfg)
+    base = run_validation(_cfg(frame, "perfect", "overlap_base"))
+    assert m["short_overlap_stations"] == ["G000", "G001"]
+    assert m["velocity_los"]["calibrated"]["n"] == (
+        base["velocity_los"]["calibrated"]["n"] - 2
+    )
+    assert base["short_overlap_stations"] == []
+    st = pd.read_csv(frame / "runs" / "overlap" / "stations.csv", index_col=0)
+    assert st.loc["G000", "overlap_years"] == 0.0  # stays in the station table
+    page = (frame / "runs" / "overlap" / "report.html").read_text()
+    assert "decision 0005" in page
 
 
 def test_demo_cli_writes_a_frame_the_tutorial_runs(tmp_path, monkeypatch, capsys):

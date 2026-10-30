@@ -80,6 +80,18 @@ def fetch_gnss(
     return midas_df, daily[daily["station"].isin(midas_df.index)]
 
 
+def overlap_years(
+    first: pd.Series, last: pd.Series, start: pd.Timestamp, end: pd.Timestamp
+) -> pd.Series:
+    """Years of each station's GNSS record (`first` to `last`) within `start`-`end`.
+
+    Zero for a record that ends before `start` or begins after `end`.
+    """
+    begin = pd.to_datetime(first).clip(lower=start)
+    stop = pd.to_datetime(last).clip(upper=end)
+    return ((stop - begin).dt.days / DAYS_PER_YEAR).clip(lower=0.0)
+
+
 def load_or_fetch_gnss(
     cache_dir: Path | str,
     bbox: Sequence[float],

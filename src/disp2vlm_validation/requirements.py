@@ -52,6 +52,13 @@ class GateThresholds:
         deforming areas and event footprints are restored, not calibrated,
         so they are reported per class instead of gating the calibration.
         Empty restores the all-station rule.
+    velocity_min_overlap_years : float
+        Stations whose GNSS record overlaps the stack by less than this are
+        left out of the velocity statistics (decision 0005): the velocity
+        compares InSAR over the stack with GNSS over the station's record, so
+        a station that ended before the stack or started after it says nothing
+        about the stack. 0 restores every station. The DD sill is not affected
+        (it uses common dates only).
 
     """
 
@@ -65,6 +72,7 @@ class GateThresholds:
     target_abs_bias_mm_yr: float = 1.0
     bootstrap_ci: float = 0.95
     velocity_excluded_classes: tuple[str, ...] = ("defo_area", "near_event")
+    velocity_min_overlap_years: float = 3.0
     independent_gnss_only: bool = field(default=True, init=False)
 
 

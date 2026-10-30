@@ -71,6 +71,7 @@ change to them needs a decision record.
 | `target_abs_bias_mm_yr` | 1.0 | Release target for \|bias\| (reported). |
 | `significance_ci` | 0.95 | Bootstrap interval for "significant". |
 | `velocity_excluded_classes` | `[defo_area, near_event]` | Classes left out of the velocity rules (decision 0002). |
+| `velocity_min_overlap_years` | 3.0 | Stations whose GNSS record overlaps the stack by less than this are left out of the velocity statistics (decision 0005). |
 | `per_class_targets` | `{}` | Targets per station class, below. |
 
 ### Per-class targets

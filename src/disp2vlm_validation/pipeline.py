@@ -32,9 +32,11 @@ from pydantic import BaseModel, Field
 from .classes import classify_stations, load_polygons, metrics_by_class
 from .gate import GateInputs, evaluate, golden_epoch_check, load_gate
 from .gnss import (
+    DAYS_PER_YEAR,
     StationSampler,
     gnss_los_series,
     load_or_fetch_gnss,
+    overlap_years,
     split_held_out,
     station_pixels,
 )
@@ -323,7 +325,16 @@ def run_validation(  # noqa: PLR0912, PLR0915
         land=land,
         pixel_m=fr.pixel_m,
     )
-    common = st[np.all(np.isfinite(st[[f"pix::{n}" for n in variants]]), axis=1)]
+    gate_cfg = load_gate(cfg.gate)
+    st["overlap_years"] = overlap_years(st["first"], st["last"], dates[0], dates[-1])
+    # a stack shorter than the requirement can only ask for all of itself
+    min_overlap = min(
+        gate_cfg.velocity_min_overlap_years,
+        (dates[-1] - dates[0]).days / DAYS_PER_YEAR,
+    )
+    long_enough = st["overlap_years"] >= min_overlap
+    finite = np.all(np.isfinite(st[[f"pix::{n}" for n in variants]]), axis=1)
+    common = st[finite & long_enough]
     velocity = {
         name: velocity_stats(
             common[f"pix::{name}"].to_numpy(), common["gps_los_mm_yr"].to_numpy()
@@ -331,7 +342,6 @@ def run_validation(  # noqa: PLR0912, PLR0915
         for name in variants
     }
     # the velocity rules see only what the calibration is responsible for
-    gate_cfg = load_gate(cfg.gate)
     excluded_classes = set(gate_cfg.velocity_excluded_classes)
     gated = common[~common["class"].isin(excluded_classes)]
     velocity_gate = {
@@ -421,6 +431,8 @@ def run_validation(  # noqa: PLR0912, PLR0915
         "n_gnss_stations": len(st),
         "excluded_stations": split.excluded,
         "held_out_stations": split.held_out,
+        "velocity_min_overlap_years": min_overlap,
+        "short_overlap_stations": sorted(st.index[finite & ~long_enough]),
         "velocity_los": velocity,
         "velocity_los_gate": {
             **velocity_gate,
