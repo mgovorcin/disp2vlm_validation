@@ -1,7 +1,7 @@
 # 0005. Velocity statistics use stations that overlap the stack
 
 - **Status:** accepted (owner, 2026-10-30). The consequence for F08882 below is
-  open.
+  settled by [decision 0006](0006-f08882-subsiding-waiver.md).
 - **Changes:** `requirements.GATE.velocity_min_overlap_years = 3.0`,
   `gate.GateConfig.velocity_min_overlap_years`, `gnss.overlap_years`; the run
   writes `overlap_years` to `stations.csv` and `short_overlap_stations` to
@@ -45,10 +45,10 @@ The 10 frames of `t50conf`, same products, same baselines
 
 - F07081 now has only 3 gated stations, so its velocity numbers carry little
   weight.
-- The CalVal report (`docs/vnv/v0.5-calval-report.md`) still has the old
-  numbers.
+- The CalVal report (`docs/vnv/v0.5-calval-report.md`) has these numbers in
+  section 1.2.
 
-## Open: F08882 fails its benchmark condition
+## F08882 fails its benchmark condition
 
 The `subsiding` class of `configs/benchmark/gate_F08882.yaml` must have
 RMSE ≤ √(raw² + reference²), where raw has its constant offset removed
@@ -71,5 +71,5 @@ RMSE ≤ √(raw² + reference²), where raw has its constant offset removed
 - **Frame-wide the calibration still helps.** Against gamma, the DD sill is
   −60% and the gated RMSE is −0.37 mm/yr.
 
-`gate_F08882.yaml` is not changed here. The owner decides between recomputing
-the reference, recording a waiver, or both.
+`gate_F08882.yaml` was not changed here. The owner chose both: recompute the
+reference and record a waiver ([decision 0006](0006-f08882-subsiding-waiver.md)).
