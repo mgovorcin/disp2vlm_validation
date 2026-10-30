@@ -29,6 +29,13 @@ Change of the calibrated LOS velocity at the stations (`med::calibrated`):
 
 **PASS:** max |change| < 0.5 mm/yr at stations ≥ 25 km from every area.
 
+![Central Valley](central_valley.png)
+
+*Calibrated LOS velocity without and with remove-restore, and their
+difference. Solid lines are the deforming areas, the dashed line is 25 km from
+them. Thin rings are the asserted stations; thick rings are inside or within
+25 km.*
+
 The condition needs the distance. The plan's wording ("stations outside
 unaffected") does not hold right at the bowl's edge, and should not:
 - Without remove-restore, the 50 km surface carried the bowl's subsidence
@@ -70,6 +77,37 @@ Runs are in `cal_disp_e2e/t46/edge`.
 - For spanning pairs, the calibration has no jump across the rupture
   (< 2 mm). Without the event database it has a 5–6.5 mm jump, so the check
   does detect a leak.
+
+![Ridgecrest](ridgecrest.png)
+
+*Calibration with and without the event database, their difference, and a
+profile across the Mw 7.1 trace. Rows: three spanning pairs, then one
+pre-event pair.*
+
+**The jump understates the leak.**
+- Without the event database the coseismic signal enters the calibration as
+  a smooth ±100 mm lobe pattern around the rupture, not as a sharp step.
+  The 50 km surface cannot make a step, which is why the jump reads only
+  5–6.5 mm.
+- The far field shows the leak better: median 10–20 km NE of the trace minus
+  10–20 km SW.
+
+| pair | with event DB | without event DB |
+|---|---|---|
+| 20160707_20160731 (pre-event, normal surface slope) | +9.5 mm | +9.5 mm |
+| 20190529_20190710 | −4.5 mm | +178.8 mm |
+| 20190529_20190716 | +21.1 mm | +148.6 mm |
+| 20190529_20190827 | +8.7 mm | +174.8 mm |
+
+- With the event database, the far-field difference is in the range of the
+  pre-event surface slope.
+- 20190529_20190716 is about 11 mm above it. On the map, a −40 to −60 mm low
+  remains at the SE end of the Mw 7.1 footprint in the 0710 and 0716 pairs.
+  The footprint may be slightly short there; this is the T41.4 check of the
+  draft footprints against the coseismic step.
+- A far-field condition (for example |far-field difference − pre-event| <
+  15 mm) would catch a leak that the step condition misses. Proposed, not
+  adopted.
 
 **How the jump is measured.**
 - The rupture trace runs along strike through the Mw 7.1 epicentre, for the
