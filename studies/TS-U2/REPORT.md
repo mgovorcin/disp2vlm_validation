@@ -46,8 +46,8 @@ lifted ≥ 2 orders: consistent < 5%, episodic 5–90%, permanent > 90%.
 |---|---|---|---|---|---|---|
 | F00834 | Baltimore / DC, Chesapeake | 12 | 1 | 3 | 8 (incl. 6,283 km²) | none (venti-dev #51 adds it) |
 | F00831 | Outer Banks | 19 | 7 | 6 | 6 (707 km²) | none (#51) |
-| F40026 | E Florida | 6 | 0 | 5 | 1 (338 km²) | none |
-| F38238 | Houston desc | 4 | 0 | 1 | 3 | none |
+| F40026 | E Florida | 6 | 0 | 5 | 1 (338 km²) | none (checked, not added) |
+| F38238 | Houston desc | 4 | 0 | 1 | 3 | none (validated, not added) |
 | F08622 | New York | 19 | 9 | 10 | 0 | none |
 | F08882 | Houston asc | 8 | 1 | 5 | 2 | separate |
 | F16940 / F18904 | Los Angeles | 3 | 1 | 0 | 2 | separate |
@@ -104,13 +104,58 @@ source. **Not adopted** (owner, 2026-10-27).
 
 1. **Frame table:** `regions: separate` where the survey finds permanently
    disconnected regions and GNSS validation agrees. Chesapeake, Outer Banks
-   and Long Island are in venti-dev #51. E Florida and Houston descending need
-   validation first.
+   and Long Island are in venti-dev #51. Houston descending and E Florida
+   were checked and get no entry (below).
 2. **The residual is a diagnostic of disconnected regions** for any unlisted
    frame. A check that warns when a frame without `regions` has a
    permanently disconnected region would have caught F18904 (LA descending).
 3. **Correction in the calibration:** off (owner). Revisit with GNSS truth on
    a disconnected region without its own station (Bolivar has none).
+
+## Houston descending (F38238) with `regions: separate`
+
+Full stack (378 epochs) with the 0.9 frame table plus `surface.regions:
+separate`, scored against the release-candidate run (`t50conf`), 2026-10-29.
+Figure: `F38238_regions_vs_release.png`.
+
+| metric | release | regions | change |
+|---|---|---|---|
+| DD sill (mm²) | 81.3 | 81.0 | −0.4% |
+| velocity RMSE, gate stations (n=45) | 4.84 | 4.45 | −0.39 |
+| median bias, gate stations | 2.62 | 2.44 | −0.18 |
+| velocity RMSE, all stations (n=100) | 4.55 | 4.37 | −0.18 |
+| verdict | PASS | PASS | |
+
+- **The survey's targets are untouched.** The three permanently disconnected
+  regions are islets of 2–7 km² in Galveston Bay. They carry no station, and
+  their velocity barely changes.
+- **The change is inland.** Rivers and reservoirs split the mainland into
+  blocks, and each block gets its own offset. 31% of pixels move by more than
+  0.5 mm/yr and 7% by more than 2 mm/yr, in blocks in the NW, W and NE.
+- **GNSS support is mixed.** Of the 14 stations that move by more than 0.5
+  mm/yr, 10 improve and 4 get worse by 1–2 mm/yr.
+  - Most of the RMSE gain comes from one station, XDHS, in the NE block: its
+    residual goes from +9.8 to −5.0 mm/yr.
+  - Without XDHS, the RMS over the other 13 stations is 4.67 → 4.60 mm/yr.
+
+**Recommendation: no frame-table entry for F38238 for now.** The islets are
+too small to matter, and the inland re-leveling is supported by one station.
+The NE block around XDHS is worth a look on its own.
+
+## E Florida (F40026) with `regions: separate`
+
+The Gulf/East batch campaign already ran F40026 with and without `regions`
+(254 epochs, cal-disp v0.5.2 batch image, `gulf_east_val/F40026`).
+
+- **The frame has only 3 GNSS stations**, too few for a DD sill. The gate fails
+  on station count with or without `regions`, so GNSS cannot decide it.
+- **On those 3 stations, `regions` does not help.** Velocity RMSE goes from
+  5.84 to 5.98 mm/yr and the median from −5.62 to −5.52. `regions: all` gives
+  the same numbers.
+- **The 338 km² permanently disconnected region is empty** in the calibrated
+  product, so a separate offset has nothing to act on.
+
+**Recommendation: no frame-table entry for F40026.**
 
 ## Reproduce
 
