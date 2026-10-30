@@ -303,6 +303,13 @@ class TestGate:
         assert all(t.max_rmse_mm_yr is None for t in g.per_class_targets.values())
         assert all(t.reference_rmse_mm_yr for t in g.per_class_targets.values())
         assert {"defo_area", "subsiding"} <= set(g.per_class_targets)
+        # decision 0006: references on the stations each class scores
+        assert g.per_class_targets["subsiding"].reference_rmse_mm_yr == pytest.approx(
+            0.94
+        )
+        assert g.per_class_targets["defo_area"].reference_rmse_mm_yr == pytest.approx(
+            1.87
+        )
 
     def test_gate_yaml(self, tmp_path):
         assert load_gate(None).sill_rise_max_pct == pytest.approx(5.0)
