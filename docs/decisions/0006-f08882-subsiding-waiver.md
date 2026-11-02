@@ -55,3 +55,7 @@ What it does not excuse:
 The waiver ends with v0.5. Before the next release, F08882 must pass or get a
 new decision. The inputs are the inland unwrap pilot (`gulf-east-v056-unw`) and
 Venti T62. Unwrap correction stays off until that trade study confirms it.
+
+**Update 2026-11-02:** on cal-disp 0.5.8 the subsiding RMSE is 3.87 mm/yr against
+the same limit, still a FAIL. [Decision 0007](0007-v058-benchmark-failures.md)
+accepts it for 0.5.8.
