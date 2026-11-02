@@ -97,7 +97,7 @@ accuracy from trade study TS-G1:
 ```yaml
 per_class_targets:
   subsiding: {max_abs_bias_mm_yr: 1.0, rmse_must_drop_vs_raw: true,
-              reference_rmse_mm_yr: 4.23, gating: true}
+              reference_rmse_mm_yr: 0.94, gating: true}
 ```
 
 All target fields: [Configuration](../guide/configuration.md#gateyaml).

@@ -106,7 +106,8 @@ reference. The validator still never reads the grid; the number is a
 documented study result in the frame's gate file.
 
 **Houston** (`configs/benchmark/gate_F08882.yaml`): defo_area 1.82 and
-subsiding 4.23 mm/yr.
+subsiding 4.23 mm/yr at the time; 1.87 and 0.94 mm/yr since
+[decision 0006](0006-f08882-subsiding-waiver.md).
 
 | run | defo_area | subsiding |
 |---|---|---|
