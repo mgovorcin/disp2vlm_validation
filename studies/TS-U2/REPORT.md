@@ -137,10 +137,15 @@ Figure: `F38238_regions_vs_release.png`.
   - Most of the RMSE gain comes from one station, XDHS, in the NE block: its
     residual goes from +9.8 to −5.0 mm/yr.
   - Without XDHS, the RMS over the other 13 stations is 4.67 → 4.60 mm/yr.
+  - **Correction (2026-10-31): XDHS is not evidence.** Its GNSS overlaps the stack
+    by only 0.02 years, so decision 0005 removes it from the velocity statistics.
+    Under that rule the gain is small: on the 30 gate stations RMSE goes from 4.83
+    to 4.69 mm/yr and median bias from +2.98 to +2.60 mm/yr.
 
 **Recommendation: no frame-table entry for F38238 for now.** The islets are
 too small to matter, and the inland re-leveling is supported by one station.
-The NE block around XDHS is worth a look on its own.
+A fit mask does more for this frame, and adding regions to one makes it worse
+(RMSE 3.57 → 4.48 at coherence ≥ 0.7): see `studies/fit-mask/REPORT.md`.
 
 ## E Florida (F40026) with `regions: separate`
 
