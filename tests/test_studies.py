@@ -344,3 +344,84 @@ def test_edge_cases_spans_and_identical():
     assert not ec.spans("20190710_20190722", t0)
     a = np.array([1.0, np.nan])
     assert ec.identical(a, a.copy()) and not ec.identical(a, np.array([1.0, 2.0]))
+
+
+def _region_stack(seed=0):
+    """Three land pieces split by water.
+
+    A (reference), B drifting +60 mm/yr in a separate unwrapper
+    component with raised residual, C in ministack offsets (summer ministacks +40 mm).
+    """
+    rng = np.random.default_rng(seed)
+    h, w, n = 60, 150, 150
+    water = np.ones((h, w))
+    water[:, 48:52] = 0
+    water[:, 98:102] = 0
+    t0 = datetime(2017, 1, 1)
+    sec = [(t0 + timedelta(days=12 * (i + 1))).strftime("%Y%m%d") for i in range(n)]
+    ref = [
+        (t0 if i < 15 else t0 + timedelta(days=12 * (15 * (i // 15)))).strftime(
+            "%Y%m%d"
+        )
+        for i in range(n)
+    ]
+    years = np.arange(1, n + 1) * 12 / 365.25
+    atmo = rng.normal(0, 3, n)  # shared by the whole frame
+    cum = (
+        np.zeros((n, h, w), np.float32)
+        + atmo[:, None, None]
+        + rng.normal(0, 1, (n, h, w))
+    )
+    cum[:, :, 52:98] += (60 * years)[:, None, None]
+    summer = ((np.arange(n) // 15) % 2 == 1).astype(float)
+    cum[:, :, 102:] += (40 * summer)[:, None, None]
+    logres = np.full((n, h, w), -5.0, np.float32)
+    logres[:, :, 52:98] = -1.0
+    cc = np.ones((n, h, w), np.int16)
+    cc[:, :, 52:98] = 2
+    coh = np.full((n, h, w), 0.9, np.float32)
+    return {
+        "cum": cum,
+        "logres": logres,
+        "cc": cc,
+        "coh": coh,
+        "water": water,
+        "ref": ref,
+        "sec": sec,
+    }
+
+
+def test_unwrap_regions_classifies_drift_rebase_offsets_and_ties_to_gnss():
+    ur = _load("unwrap_regions")
+    st = _region_stack()
+    flat = np.zeros(st["water"].shape)
+    df, lab, refl = ur.analyse(st, px_km=0.3, gnss={"grid": flat})
+    assert (lab == refl)[:, :48].all()
+    b = df.loc[df.col.between(52, 98)].iloc[0]
+    c = df.loc[df.col > 102].iloc[0]
+    assert (
+        b.verdict == "error: off GNSS surface"
+    )  # a smooth drift: only the GNSS tie catches it
+    assert b.sep > 0.9 and abs(b.rate - 60) < 3 and abs(b.grid_shift - 60) < 3
+    assert c.verdict == "error: steps at rebases" and c.big_at_rebase > 0.9
+    assert abs(c.grid_expected) < 1e-9
+
+
+def test_unwrap_regions_chain_and_tie():
+    ur = _load("unwrap_regions")
+    d = np.ones((3, 2, 2), np.float32)
+    out = ur.chain(
+        ["20200101", "20200101", "20200113"], ["20200113", "20200125", "20200206"], d
+    )
+    assert out[:, 0, 0].tolist() == [
+        1,
+        1,
+        2,
+    ]  # the third product starts from the first one's level
+    m = np.zeros((20, 20), bool)
+    m[:5] = True
+    rg = np.zeros((20, 20), bool)
+    rg[10:] = True
+    surf = np.where(m, 3.0, 1.0)
+    assert ur.gnss_tie(m, rg, surf) == 2.0
+    assert np.isnan(ur.gnss_tie(m, rg, np.full((20, 20), np.nan)))
