@@ -49,6 +49,7 @@ COH_GOOD = 0.6
 RIDGE = 0.5  # local residual contrast that separates regions (orders of magnitude)
 CONTRAST_PX = 41  # median-filter size of the local contrast (~12 km at 300 m)
 GAP_YR = 0.25  # a gap in dates that starts a new block
+RING_KM = (10.0, 20.0, 40.0, 80.0, 160.0, np.inf)  # inf = the whole reference region
 
 
 def _med(a: np.ndarray) -> float:
@@ -304,8 +305,12 @@ def analyse(
         }
         dk = series(cum, good, m)
         if np.isfinite(dk).sum() >= 20:
-            for km in (10.0, 20.0, 40.0):
-                rg = ring(lab, k, ref, px_km, km)
+            # nearest reference cells first; a region far across water (an island
+            # more than 40 km off) falls back to wider rings, then to the whole
+            # reference region (ring_km = inf). The GNSS tie uses the same cells,
+            # so the long-wavelength difference over that distance is accounted for.
+            for km in RING_KM:
+                rg = ring(lab, k, ref, px_km, km) if np.isfinite(km) else mref
                 dr = series(cum, good, rg)
                 if np.isfinite(dr).sum() >= 0.8 * np.isfinite(dk).sum():
                     break

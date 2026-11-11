@@ -407,6 +407,38 @@ def test_unwrap_regions_classifies_drift_rebase_offsets_and_ties_to_gnss():
     assert abs(c.grid_expected) < 1e-9
 
 
+def test_unwrap_regions_tests_islands_far_across_water():
+    """An island more than 40 km from the reference is still tested (wider ring)."""
+    ur = _load("unwrap_regions")
+    rng = np.random.default_rng(1)
+    h, w, n = 40, 260, 120
+    water = np.zeros((h, w))
+    water[:, :70] = 1  # reference: the largest piece
+    water[:, 230:] = 1  # 160 px = 48 km of water at 0.3 km
+    t0 = datetime(2017, 1, 1)
+    sec = [(t0 + timedelta(days=12 * (i + 1))).strftime("%Y%m%d") for i in range(n)]
+    ref = [t0.strftime("%Y%m%d")] * n
+    years = np.arange(1, n + 1) * 12 / 365.25
+    cum = rng.normal(0, 1, (n, h, w)).astype(np.float32)
+    cum[:, :, 230:] += (60 * years)[:, None, None]
+    cc = np.ones((n, h, w), np.int16)
+    cc[:, :, 230:] = 2
+    st = {
+        "cum": cum,
+        "logres": np.full((n, h, w), -5.0, np.float32),
+        "cc": cc,
+        "coh": np.full((n, h, w), 0.9, np.float32),
+        "water": water,
+        "ref": ref,
+        "sec": sec,
+    }
+    df, lab, refl = ur.analyse(st, px_km=0.3, gnss={"grid": np.zeros((h, w))})
+    assert (lab == refl)[:, :70].all()
+    island = df.loc[df.col > 230].iloc[0]
+    assert island.ring_km == 80.0
+    assert island.verdict.startswith("error") and abs(island.grid_shift - 60) < 3
+
+
 def test_unwrap_regions_chain_and_tie():
     ur = _load("unwrap_regions")
     d = np.ones((3, 2, 2), np.float32)
