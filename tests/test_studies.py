@@ -480,8 +480,10 @@ def _resplane_stack(h=80, w=200, n=30, logres=None):
 
 
 def test_resplane_separates_steps_from_ramps():
-    """Island off by +40 (error by bias), inland block +15 with a step (confirmed by edge),
-    and a smooth +15 ramp with no step (ok)."""
+    """Island +40: error by bias. Inland block +15 with a step: error by edge step.
+
+    A smooth +15 ramp with no step: ok.
+    """
     ur = _load("unwrap_regions")
     st, rng = _resplane_stack()
     h, w = st["water"].shape
@@ -491,7 +493,7 @@ def test_resplane_separates_steps_from_ramps():
     rate[5:25, 60:100] += 15.0  # inland step block
     rate[:, 160:] += 40.0  # island
     grid = np.zeros((h, w))
-    df, lab, info = ur.resplane_analyse(st, px_km=0.3, grid=grid, rate=rate)
+    df, lab, _info = ur.resplane_analyse(st, px_km=0.3, grid=grid, rate=rate)
     get = lambda r, c: df.set_index("level").loc[lab[r, c]]  # noqa: E731
     assert get(40, 180).verdict == "error: bias" and abs(get(40, 180).bias - 40) < 2
     blk = get(15, 80)
@@ -500,7 +502,7 @@ def test_resplane_separates_steps_from_ramps():
 
 
 def test_resplane_reference_follows_the_lower_inversion_residual():
-    """Two equal land halves 40 mm/yr apart: the half with the higher residual is the error."""
+    """Two halves 40 mm/yr apart: the one with the higher residual is the error."""
     ur = _load("unwrap_regions")
     h, w = 80, 200
     lr = np.full((h, w), -5.0, np.float32)
@@ -517,7 +519,7 @@ def test_resplane_reference_follows_the_lower_inversion_residual():
 
 
 def test_resplane_inversion_residual_confirms_a_far_piece():
-    """A +15 island with no reference nearby: candidate, unless its residual is 3 orders higher."""
+    """A far +15 island: candidate; error when its residual is 3 orders higher."""
     ur = _load("unwrap_regions")
     for lr_isl, want in (
         (-5.0, "candidate: no reference nearby"),
@@ -530,7 +532,7 @@ def test_resplane_inversion_residual_confirms_a_far_piece():
         st["water"][:, 160:250] = 0  # 27 km of water
         rate = rng.normal(0, 0.5, (h, w))
         rate[:, 250:] += 15.0
-        df, lab, info = ur.resplane_analyse(
+        df, lab, _info = ur.resplane_analyse(
             st, px_km=0.3, grid=np.zeros((h, w)), rate=rate
         )
         assert df.set_index("level").loc[lab[40, 280]].verdict == want

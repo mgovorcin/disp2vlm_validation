@@ -351,9 +351,10 @@ def analyse(
 # smoothed R differs by < RP_STEP; water and jumps in R cut regions apart. The reference
 # level is a peak of the area-weighted R histogram, the one with the lowest median
 # inversion residual among peaks holding >= RP_PEAK_SHARE of the land. Bias = region R
-# minus the reference level's >50 km trend. Error: |bias| >= RP_BIG, or RP_FLAG <= |bias|
-# < RP_BIG confirmed by a step of the same sign against nearby reference cells, or by an
-# inversion residual RP_LR_EXCESS orders of magnitude above the reference level's.
+# minus the reference level's >50 km trend. Error: |bias| >= RP_BIG, or
+# RP_FLAG <= |bias| < RP_BIG confirmed by a step of the same sign against nearby
+# reference cells, or by an inversion residual RP_LR_EXCESS orders of magnitude above
+# the reference level's.
 
 RP_STEP = 5.0  # mm/yr between neighbours that still connects them
 RP_FLAG = 10.0  # mm/yr bias that needs an edge step to confirm
@@ -395,7 +396,10 @@ def rate_map(cum: np.ndarray, years: np.ndarray, good: np.ndarray) -> np.ndarray
 def connected_levels(
     rs: np.ndarray, land: np.ndarray, step: float = RP_STEP
 ) -> np.ndarray:
-    """Labels of land pixels connected through 4-neighbours whose |difference| < `step`, by size."""
+    """Label land pixels connected through 4-neighbours closer than `step`.
+
+    Labels are numbered by size (1 = largest).
+    """
     from scipy.sparse import coo_matrix
     from scipy.sparse.csgraph import connected_components
 
@@ -425,8 +429,10 @@ def connected_levels(
 def reference_level(
     rs: np.ndarray, land: np.ndarray, med_logres: np.ndarray | None
 ) -> tuple[float, list[dict]]:
-    """Reference R level: among histogram peaks holding >= RP_PEAK_SHARE of the land, the one
-    with the lowest median inversion residual (largest area when there is no residual).
+    """Pick the reference R level.
+
+    Among histogram peaks holding >= RP_PEAK_SHARE of the land, the one with the
+    lowest median inversion residual (the largest area when there is no residual).
     """
     x = rs[land & np.isfinite(rs)]
     lo, hi = np.percentile(x, [0.5, 99.5])
@@ -435,7 +441,7 @@ def reference_level(
         return float(np.median(x)), []
     hist = ndi.gaussian_filter1d(np.histogram(x, edges)[0].astype(float), 2)
     c = 0.5 * (edges[:-1] + edges[1:])
-    peaks = []
+    peaks: list[dict] = []
     for i in np.argsort(-hist):
         if hist[i] < hist[max(0, i - 3) : i + 4].max() or any(
             abs(c[i] - p["level"]) < 2 * RP_STEP for p in peaks
@@ -465,8 +471,10 @@ def reference_level(
 
 
 def smooth_trend(vals: np.ndarray, use: np.ndarray, sig: float) -> np.ndarray:
-    """Normalized Gaussian smoothing of `vals` over `use`; where `use` is sparse (weight < 0.1)
-    a 3x then 9x broader kernel, never extrapolated from a few edge pixels.
+    """Smooth `vals` over the `use` pixels (normalized Gaussian).
+
+    Where `use` is sparse (weight < 0.1) a 3x then 9x broader kernel takes over, so
+    the trend is never extrapolated from a few edge pixels.
     """
     out = np.full(vals.shape, np.nan)
     v = np.where(use, vals, 0.0)
@@ -481,8 +489,11 @@ def smooth_trend(vals: np.ndarray, use: np.ndarray, sig: float) -> np.ndarray:
 def edge_step(
     r: np.ndarray, m: np.ndarray, refm: np.ndarray, px_km: float
 ) -> tuple[float, float]:
-    """Median R of the piece minus nearby reference cells, in the narrowest band of RP_EDGE_KM
-    with >= 20 valid cells on both sides; (nan, nan) when no reference within 20 km.
+    """Return the step of a piece against nearby reference cells, and the band used.
+
+    Median R of the piece minus that of the reference cells, in the narrowest band of
+    RP_EDGE_KM with >= 20 valid cells on both sides; (nan, nan) when there is no
+    reference within 20 km.
     """
     yy, xx = np.nonzero(m)
     w = int(max(RP_EDGE_KM) / px_km) + 2
@@ -503,8 +514,10 @@ def edge_step(
 
 
 def resplane_verdict(bias: float, step: float, lr_excess: float = np.nan) -> str:
-    """Ok / error (bias >= RP_BIG; or >= RP_FLAG with an edge step of the same sign, or with an
-    inversion residual RP_LR_EXCESS orders above the reference level) / candidate.
+    """Classify a level: ok, error or candidate.
+
+    Error: bias >= RP_BIG; or >= RP_FLAG with an edge step of the same sign, or with
+    an inversion residual RP_LR_EXCESS orders above the reference level.
     """
     if not np.isfinite(bias) or abs(bias) < RP_FLAG:
         return "ok"
@@ -524,11 +537,11 @@ def resplane_verdict(bias: float, step: float, lr_excess: float = np.nan) -> str
 def resplane_analyse(
     stack: dict, px_km: float, grid: np.ndarray, rate: np.ndarray | None = None
 ) -> tuple[pd.DataFrame, np.ndarray, dict]:
-    """Regions from the residual plane (raw rate minus the UNR grid LOS surface) of one frame.
+    """Find the regions of one frame on its residual plane (raw rate - UNR grid LOS).
 
-    Returns one row per connected level (bias, edge step, median log residual, verdict,
-    shift = bias: the rate that puts the level on the grid's trend), the level labels, and
-    {reference level R0, peaks considered, residual plane, trend}.
+    Returns one row per connected level (bias, edge step, median log residual,
+    verdict, shift = bias: the rate that puts the level on the grid's trend), the
+    level labels, and {reference level R0, peaks, residual plane, trend, shift map}.
     """
     years = np.array([decimal_year(s) for s in stack["sec"]])
     with warnings.catch_warnings():
@@ -540,8 +553,8 @@ def resplane_analyse(
         rate = rate_map(stack["cum"], years, good)
     valid_r = (stack["water"] == 1) & np.isfinite(rate) & np.isfinite(grid)
     r = np.where(valid_r, rate - grid, np.nan)
-    # fill gaps (incoherent pixels) with the nearest valid value first, then smooth: filling with a
-    # frame-wide value would pull sparse error areas onto the reference level
+    # fill gaps (incoherent pixels) with the nearest valid value first, then smooth:
+    # a frame-wide fill value would pull sparse error areas onto the reference level
     dist, (iy, ix) = ndi.distance_transform_edt(~valid_r, return_indices=True)
     rs = ndi.median_filter(np.nan_to_num(r[iy, ix]), size=3)
     # connect through small gaps: land within RP_GAP_KM of a valid pixel
@@ -562,7 +575,7 @@ def resplane_analyse(
     lr_l = ndi.median(np.nan_to_num(med_lr, nan=np.nanmedian(med_lr)), lab, ids)
     lr_ref = _med(med_lr[use])
     rows = []
-    for k, n, b, lrk in zip(ids, cnt, bias, lr_l):
+    for k, n, b, lrk in zip(ids, cnt, bias, lr_l, strict=True):
         row = {
             "level": int(k),
             "px": int(n),
@@ -604,11 +617,11 @@ def absorb(
     px_km: float,
     km: float = RP_GAP_KM,
 ) -> np.ndarray:
-    """Shift map: error levels, plus pixels within `km` of an error level at its level.
+    """Build the shift map: error levels, plus nearby pixels at the same level.
 
-    Noise splits an error region into many small levels; a pixel outside every error level
-    takes the shift of the nearest error pixel when its detrended residual `rd` is within
-    max(RP_STEP, 15 %) of that shift.
+    Noise splits an error region into many small levels; a pixel outside every error
+    level, within `km` of one, takes the shift of the nearest error pixel when its
+    detrended residual `rd` is within max(RP_STEP, 15 %) of that shift.
     """
     shift = np.zeros(lab.shape)
     err = df[df.verdict.str.startswith("error")]
