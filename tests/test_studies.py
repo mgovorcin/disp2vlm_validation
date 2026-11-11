@@ -538,6 +538,20 @@ def test_resplane_inversion_residual_confirms_a_far_piece():
         assert df.set_index("level").loc[lab[40, 280]].verdict == want
 
 
+def test_resplane_no_clean_reference_gives_no_shift():
+    """A frame whose reference level has a high inversion residual: errors untrusted."""
+    ur = _load("unwrap_regions")
+    h, w = 80, 200
+    st, rng = _resplane_stack(h, w, logres=np.full((h, w), 0.5, np.float32))
+    st["water"][:, 150:160] = 0
+    rate = rng.normal(0, 0.5, (h, w))
+    rate[:, 160:] += 40.0
+    df, lab, info = ur.resplane_analyse(st, px_km=0.3, grid=np.zeros((h, w)), rate=rate)
+    isl = df.set_index("level").loc[lab[40, 180]]
+    assert not info["clean"] and isl.verdict == "untrusted: error: bias"
+    assert isl["shift"] == 0 and not info["shift"].any()
+
+
 def test_resplane_absorbs_noise_specks_into_the_error_level():
     ur = _load("unwrap_regions")
     lab = np.array([[1, 1, 2, 3, 3]])

@@ -354,13 +354,16 @@ def analyse(
 # minus the reference level's >50 km trend. Error: |bias| >= RP_BIG, or
 # RP_FLAG <= |bias| < RP_BIG confirmed by a step of the same sign against nearby
 # reference cells, or by an inversion residual RP_LR_EXCESS orders of magnitude above
-# the reference level's.
+# the reference level's. A frame whose reference level is not clean (under
+# RP_PEAK_SHARE of the land, or median log residual above RP_CLEAN_LR) gets no shifts:
+# its errors are reported as "untrusted".
 
 RP_STEP = 5.0  # mm/yr between neighbours that still connects them
 RP_FLAG = 10.0  # mm/yr bias that needs an edge step to confirm
 RP_BIG = 30.0  # mm/yr bias that is an error on its own
-RP_MIN_PX = 5
+RP_MIN_PX = 20  # 300 m cells; smaller pieces are speckle
 RP_PEAK_SHARE = 0.25
+RP_CLEAN_LR = -2.0  # median log10 inversion residual of a clean reference level
 RP_TREND_KM = 9.4  # Gaussian sigma: half response at 50 km
 RP_EDGE_KM = (1.5, 5.0, 10.0, 20.0)
 RP_GAP_KM = (
@@ -574,6 +577,10 @@ def resplane_analyse(
         use = land & ~np.isin(lab, bad) & (np.abs(rs - r0 - trend) < RP_STEP)
     lr_l = ndi.median(np.nan_to_num(med_lr, nan=np.nanmedian(med_lr)), lab, ids)
     lr_ref = _med(med_lr[use])
+    share = float((land & (np.abs(rs - r0) < RP_STEP)).sum() / max(1, land.sum()))
+    clean = share >= RP_PEAK_SHARE and not (
+        np.isfinite(lr_ref) and lr_ref > RP_CLEAN_LR
+    )
     rows = []
     for k, n, b, lrk in zip(ids, cnt, bias, lr_l, strict=True):
         row = {
@@ -592,6 +599,8 @@ def resplane_analyse(
             if n >= RP_MIN_PX
             else "ok"
         )
+        if not clean and row["verdict"].startswith("error"):
+            row["verdict"] = "untrusted: " + row["verdict"]
         row["shift"] = float(b) if row["verdict"].startswith("error") else 0.0
         rows.append(row)
     df = pd.DataFrame(rows)
@@ -602,6 +611,9 @@ def resplane_analyse(
         {
             "r0": r0,
             "peaks": peaks,
+            "clean": clean,
+            "ref_share": share,
+            "ref_logres": lr_ref,
             "residual": r,
             "trend": trend,
             "shift": shift,
