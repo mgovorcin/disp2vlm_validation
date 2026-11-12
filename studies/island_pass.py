@@ -207,6 +207,7 @@ def _piece_surface(
     grid: np.ndarray,
     w: np.ndarray,
     px_km: float,
+    *,
     surface: Surface | None,
     auto_exclude: bool,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -280,7 +281,9 @@ def calibrate_two_pass(
     frame_w = keep & ~np.isin(pieces, big + small)
     if frame_w.sum() < 0.3 * (valid & ~np.isin(pieces, big + small)).sum():
         frame_w = valid & ~np.isin(pieces, big + small)  # the mask covers the piece
-    surf, fast = _piece_surface(rate, grid, frame_w, px_km, surface, auto_exclude)
+    surf, fast = _piece_surface(
+        rate, grid, frame_w, px_km, surface=surface, auto_exclude=auto_exclude
+    )
     out = rate - surf
     excluded[fast] = 2
     lim = PIECE_MIN_KM2 / px_km**2
@@ -288,7 +291,9 @@ def calibrate_two_pass(
         w = keep & (pieces == k)
         if w.sum() < lim / 10:
             continue
-        own, fast = _piece_surface(rate, grid, w, px_km, surface, auto_exclude)
+        own, fast = _piece_surface(
+            rate, grid, w, px_km, surface=surface, auto_exclude=auto_exclude
+        )
         out = np.where(pieces == k, rate - own, out)
         excluded[fast] = 2
     for k in small:  # island pass: every small piece is judged, however small
