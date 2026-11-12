@@ -344,3 +344,79 @@ def test_edge_cases_spans_and_identical():
     assert not ec.spans("20190710_20190722", t0)
     a = np.array([1.0, np.nan])
     assert ec.identical(a, a.copy()) and not ec.identical(a, np.array([1.0, 2.0]))
+
+
+def _fake_surface(field, weight, pixel_m, cutoff_m, fallback):
+    """Normalized Gaussian smoother standing in for Venti's loclin surface."""
+    from scipy import ndimage as ndi
+
+    sigma = cutoff_m / pixel_m * 0.187
+    den = ndi.gaussian_filter(weight, sigma, mode="nearest")
+    num = ndi.gaussian_filter(field * weight, sigma, mode="nearest")
+    return np.where(den > 1e-3, num / np.maximum(den, 1e-3), fallback)
+
+
+def _island_frame():
+    """Mainland (cols 0-119) and a 20 x 20 island across 6 px of water."""
+    h, w = 120, 160
+    land = np.ones((h, w), bool)
+    land[:, 120:126] = False  # channel
+    land[:, 146:] = False
+    land[:50, 126:] = False
+    land[70:, 126:] = False
+    rng = np.random.default_rng(1)
+    grid = np.zeros((h, w))
+    rate = 3.0 + 0.02 * np.arange(w)[None, :] + rng.normal(0, 0.3, (h, w))
+    rate = np.where(land, rate, np.nan)
+    return rate, grid, land
+
+
+def test_island_pass_sets_an_offset_island_onto_the_surface():
+    """A +30 mm/yr island: out of the fit, then shifted whole onto the surface."""
+    ip = _load("island_pass")
+    rate, grid, land = _island_frame()
+    clean, _ = ip.calibrate_two_pass(
+        rate, grid, land, ip.land_pieces(land, land, 0.3), 0.3, surface=_fake_surface
+    )
+    island = np.zeros(land.shape, bool)
+    island[50:70, 126:146] = True
+    rate[island] += 30.0
+    pieces = ip.land_pieces(land, land, 0.3)
+    cal, shift = ip.calibrate_two_pass(
+        rate, grid, land, pieces, 0.3, surface=_fake_surface
+    )
+    assert abs(np.median(shift[island]) - 30.0) < 1.0 and not shift[~island].any()
+    assert abs(np.nanmedian(cal[island])) < 1.0
+    main = land & ~island
+    # the island's offset does not reach the mainland
+    assert np.nanmax(np.abs(cal[main] - clean[main])) < 0.05
+
+
+def test_island_pass_leaves_a_small_offset_alone():
+    ip = _load("island_pass")
+    rate, grid, land = _island_frame()
+    rate[50:70, 126:146] += 3.0  # under ISLAND_MIN
+    pieces = ip.land_pieces(land, land, 0.3)
+    _, shift = ip.calibrate_two_pass(
+        rate, grid, land, pieces, 0.3, surface=_fake_surface
+    )
+    assert not shift.any()
+
+
+def test_land_pieces_bridge_gaps_over_land_but_never_over_water():
+    ip = _load("island_pass")
+    land = np.ones((40, 60), bool)
+    land[:, 30:32] = False  # 2 px of water
+    land[:, 50:] = False  # the right piece: 40 x 18 px, under PIECE_MIN_KM2
+    valid = land.copy()
+    valid[:, 10:13] = False  # 3 px of land without data
+    pieces = ip.land_pieces(valid, land, 0.3)
+    assert pieces[20, 5] == pieces[20, 20] > 0  # joined across the data gap
+    assert pieces[20, 40] not in (0, pieces[20, 20])  # water keeps them apart
+    assert ip.small_pieces(pieces, 0.3) == [int(pieces[20, 40])]
+
+
+def test_dominant_offset_ignores_a_minority_level():
+    ip = _load("island_pass")
+    x = np.r_[np.full(80, 20.0), np.full(20, -40.0)] + np.linspace(-1, 1, 100)
+    assert abs(ip.dominant_offset(x) - 20.0) < 1.0

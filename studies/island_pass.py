@@ -1,0 +1,214 @@
+# Copyright (c) 2026 California Institute of Technology ("Caltech").
+# U.S. Government sponsorship acknowledged.
+# SPDX-License-Identifier: Apache-2.0
+"""Baseline calibrated velocity: water-aware breaklines and an island pass.
+
+A study of the NA VLM baseline (cal-vlm-batch ``campaigns/na_coast/BASELINE.md``).
+The per-pair calibration (Venti loclin, 50 km half-response cutoff, fitted to
+DISP minus the UNR grid in LOS) is linear in the data, so the rate of a
+calibrated stack equals ``raw rate - surface(raw rate - grid rate)``. This
+module redoes that calibration on a frame's velocity map with two changes that
+keep an unwrapping offset on one land piece from leaking into another:
+
+1. **Breaklines that never cross water.** Land pieces are the connected valid
+   pixels; gaps are bridged over land without data, never over water. A large
+   piece (other than the largest) gets a surface of its own.
+2. **Island pass.** Small pieces stay out of the surface fit. Each is then
+   compared with the surface extended to it; a piece whose good pixels sit
+   `island_min` or more off is labelled and shifted whole onto the surface.
+
+Like `ts_g1`, this study reads the UNR grid on purpose (its subject is the
+calibration to that grid); nothing here feeds the gate or a report.
+
+Result on the 22 reviewed coast frames (2026-11-12): median MIDAS LOS RMS
+2.98 -> 1.25 mm/yr, mean overlap NMAD 3.23 -> 2.29 mm/yr against the
+calibration without breaklines.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+
+import numpy as np
+from scipy import ndimage as ndi
+
+__all__ = [
+    "calibrate_two_pass",
+    "dominant_offset",
+    "land_pieces",
+    "small_pieces",
+    "surface_fit",
+]
+
+CUTOFF_KM = 50.0  # half-response wavelength of the calibration surface
+PIECE_MIN_KM2 = 97.0  # Venti surface.piece_min_pixels (3000 cells at 180 m)
+BRIDGE_KM = 1.5  # closing radius: gaps of about twice this are bridged over land
+ISLAND_MIN = 5.0  # mm/yr off the surface that labels a small piece
+ISLAND_PX = 5  # pixels a small piece needs to be judged
+LEVEL_HALF_WIDTH = 5.0  # mm/yr around the dominant level: the piece's good pixels
+
+Surface = Callable[
+    [np.ndarray, np.ndarray, float, float, np.ndarray | None], np.ndarray
+]
+
+
+def land_pieces(valid: np.ndarray, land: np.ndarray, px_km: float) -> np.ndarray:
+    """Label the land pieces of a frame; gaps are bridged over land only.
+
+    Parameters
+    ----------
+    valid : np.ndarray
+        Pixels with a rate.
+    land : np.ndarray
+        True on land (with or without data); False on water.
+    px_km : float
+        Pixel size in km.
+
+    Returns
+    -------
+    np.ndarray
+        int32 labels on the valid pixels, 0 elsewhere.
+
+    """
+    valid = np.asarray(valid, dtype=bool)
+    n = max(1, round(BRIDGE_KM / px_km))
+    closed = ndi.binary_closing(np.pad(valid, n), np.ones((3, 3), bool), iterations=n)
+    bridged = (closed[n:-n, n:-n] & np.asarray(land, dtype=bool)) | valid
+    labels, _ = ndi.label(bridged)
+    return np.where(valid, labels, 0).astype(np.int32)
+
+
+def _piece_sizes(pieces: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    return np.unique(pieces[pieces > 0], return_counts=True)
+
+
+def small_pieces(pieces: np.ndarray, px_km: float) -> list[int]:
+    """Return the pieces under PIECE_MIN_KM2, the largest piece excepted."""
+    ids, cnt = _piece_sizes(pieces)
+    if ids.size == 0:
+        return []
+    main = ids[cnt.argmax()]
+    lim = PIECE_MIN_KM2 / px_km**2
+    return [int(k) for k, n in zip(ids, cnt, strict=True) if k != main and n < lim]
+
+
+def dominant_offset(values: np.ndarray) -> float:
+    """Median of the values within LEVEL_HALF_WIDTH of their dominant level."""
+    x = np.asarray(values, dtype=float)
+    x = x[np.isfinite(x)]
+    if x.size < 5:
+        return float(np.median(x)) if x.size else np.nan
+    lo, hi = np.percentile(x, [1, 99])
+    edges = np.arange(lo - 1.0, hi + 2.0, 1.0)
+    if edges.size < 3:
+        return float(np.median(x))
+    hist = ndi.gaussian_filter1d(np.histogram(x, edges)[0].astype(float), 2)
+    level = 0.5 * (edges[:-1] + edges[1:])[int(hist.argmax())]
+    good = x[np.abs(x - level) < LEVEL_HALF_WIDTH]
+    return float(np.median(good)) if good.size >= 3 else float(np.median(x))
+
+
+def _venti_surface(
+    field: np.ndarray,
+    weight: np.ndarray,
+    pixel_m: float,
+    cutoff_m: float,
+    fallback: np.ndarray | None,
+) -> np.ndarray:
+    from venti.calibration.loclin import loclin_surface
+
+    return loclin_surface(field, weight, pixel_m, cutoff_m, fallback=fallback)[0]
+
+
+def surface_fit(
+    rate: np.ndarray,
+    grid: np.ndarray,
+    weight: np.ndarray,
+    px_km: float,
+    *,
+    surface: Surface | None = None,
+) -> np.ndarray:
+    """Calibration surface of ``rate - grid`` fitted on the `weight` pixels.
+
+    Valid pixels outside `weight` are left out of the fit, so they must not
+    reach the surface through its low-coverage fallback either: the fallback
+    is a normalized Gaussian of the weighted field (nearest value where no
+    weight is in reach), not the smoothed field Venti uses by default.
+    """
+    fit = _venti_surface if surface is None else surface
+    field = np.where(np.isfinite(rate) & np.isfinite(grid), rate - grid, 0.0)
+    w = np.asarray(weight, dtype=float)
+    sigma = CUTOFF_KM / px_km * float(np.sqrt(np.log(2.0) / 2.0) / np.pi)
+    num = ndi.gaussian_filter(field * w, sigma, mode="nearest")
+    den = ndi.gaussian_filter(w, sigma, mode="nearest")
+    fallback = np.where(den > 1e-6, num / np.maximum(den, 1e-6), np.nan)
+    if np.isnan(fallback).all():
+        fallback = np.zeros(field.shape)
+    elif np.isnan(fallback).any():
+        _, (iy, ix) = ndi.distance_transform_edt(
+            np.isnan(fallback), return_indices=True
+        )
+        fallback = fallback[iy, ix]
+    return fit(field, w, px_km * 1000.0, CUTOFF_KM * 1000.0, fallback)
+
+
+def calibrate_two_pass(
+    rate: np.ndarray,
+    grid: np.ndarray,
+    valid: np.ndarray,
+    pieces: np.ndarray,
+    px_km: float,
+    *,
+    island_min: float = ISLAND_MIN,
+    surface: Surface | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Calibrate a velocity map with breaklines and the island pass.
+
+    Parameters
+    ----------
+    rate, grid : np.ndarray
+        Raw LOS rate and the UNR grid LOS rate, mm/yr.
+    valid : np.ndarray
+        Pixels that take part (land with a rate).
+    pieces : np.ndarray
+        Labels from `land_pieces`.
+    px_km : float
+        Pixel size in km.
+    island_min : float
+        Offset from the surface (mm/yr) that labels a small piece.
+    surface : callable, optional
+        ``surface(field, weight, pixel_m, cutoff_m, fallback) -> ndarray``;
+        Venti's `loclin_surface` when omitted.
+
+    Returns
+    -------
+    calibrated, island_shift : np.ndarray
+        Calibrated rate (the island shift already removed) and the shift of
+        every labelled small piece (0 elsewhere).
+
+    """
+    valid = np.asarray(valid, dtype=bool)
+    shift = np.zeros(rate.shape)
+    ids, cnt = _piece_sizes(pieces)
+    if ids.size == 0:
+        return rate - surface_fit(rate, grid, valid, px_km, surface=surface), shift
+    small = small_pieces(pieces, px_km)
+    main = ids[cnt.argmax()]
+    big = [int(k) for k in ids if k != main and int(k) not in small]
+    frame_w = valid & ~np.isin(pieces, big + small)
+    out = rate - surface_fit(rate, grid, frame_w, px_km, surface=surface)
+    lim = PIECE_MIN_KM2 / px_km**2
+    for k in big:  # breaklines: a large piece is calibrated on its own pixels
+        w = valid & (pieces == k)
+        if w.sum() < lim / 10:
+            continue
+        own = rate - surface_fit(rate, grid, w, px_km, surface=surface)
+        out = np.where(pieces == k, own, out)
+    for k in small:  # island pass
+        m = valid & (pieces == k)
+        if m.sum() < ISLAND_PX:
+            continue
+        off = dominant_offset((out - grid)[m])
+        if np.isfinite(off) and abs(off) >= island_min:
+            shift[pieces == k] = off
+    return out - shift, shift
