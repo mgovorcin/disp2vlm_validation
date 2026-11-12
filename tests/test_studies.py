@@ -403,6 +403,19 @@ def test_island_pass_leaves_a_small_offset_alone():
     assert not shift.any()
 
 
+def test_island_pass_judges_a_two_pixel_piece():
+    """A piece of 2 px (a GNSS station on a jetty) is set onto the surface too."""
+    ip = _load("island_pass")
+    rate, grid, land = _island_frame()
+    land[10, 130:132] = True
+    rate[10, 130:132] = 3.0 + 0.02 * 130 - 16.0
+    pieces = ip.land_pieces(land, land, 0.3)
+    cal, shift = ip.calibrate_two_pass(
+        rate, grid, land, pieces, 0.3, surface=_fake_surface
+    )
+    assert abs(shift[10, 130] + 16.0) < 1.5 and abs(cal[10, 130]) < 1.5
+
+
 def test_land_pieces_bridge_gaps_over_land_but_never_over_water():
     ip = _load("island_pass")
     land = np.ones((40, 60), bool)

@@ -44,7 +44,6 @@ CUTOFF_KM = 50.0  # half-response wavelength of the calibration surface
 PIECE_MIN_KM2 = 97.0  # Venti surface.piece_min_pixels (3000 cells at 180 m)
 BRIDGE_KM = 1.5  # closing radius: gaps of about twice this are bridged over land
 ISLAND_MIN = 5.0  # mm/yr off the surface that labels a small piece
-ISLAND_PX = 5  # pixels a small piece needs to be judged
 LEVEL_HALF_WIDTH = 5.0  # mm/yr around the dominant level: the piece's good pixels
 
 Surface = Callable[
@@ -204,10 +203,8 @@ def calibrate_two_pass(
             continue
         own = rate - surface_fit(rate, grid, w, px_km, surface=surface)
         out = np.where(pieces == k, own, out)
-    for k in small:  # island pass
+    for k in small:  # island pass: every small piece is judged, however small
         m = valid & (pieces == k)
-        if m.sum() < ISLAND_PX:
-            continue
         off = dominant_offset((out - grid)[m])
         if np.isfinite(off) and abs(off) >= island_min:
             shift[pieces == k] = off
