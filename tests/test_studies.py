@@ -459,6 +459,23 @@ def test_fast_area_is_found_and_left_out_of_the_fit():
     assert cal[150, 150] < off[150, 150] - 1.0  # more of the bowl is kept
 
 
+def test_mixed_sign_fast_area_is_marked_as_an_unwrapping_area():
+    """Adjacent +30 / -30 blobs: code 3; a one-signed bowl stays code 2."""
+    ip = _load("island_pass")
+    h, w = 300, 300
+    rng = np.random.default_rng(4)
+    rate = 1.0 + rng.normal(0, 0.5, (h, w))
+    rate[40:90, 40:90] += 30.0
+    rate[40:90, 90:140] -= 30.0  # touching blobs of opposite sign
+    rate[200:250, 200:250] -= 30.0  # a bowl
+    valid = np.ones((h, w), bool)
+    pieces = ip.land_pieces(valid, valid, 0.3)
+    _, _, excl = ip.calibrate_two_pass(
+        rate, np.zeros((h, w)), valid, pieces, 0.3, surface=_fake_surface
+    )
+    assert excl[65, 65] == 3 and excl[65, 115] == 3 and excl[225, 225] == 2
+
+
 def test_fit_exclude_marks_a_known_deformation_area():
     ip = _load("island_pass")
     rate, grid, land = _island_frame()

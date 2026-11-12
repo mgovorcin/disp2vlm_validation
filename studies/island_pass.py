@@ -37,6 +37,7 @@ __all__ = [
     "dominant_offset",
     "fast_areas",
     "land_pieces",
+    "mixed_sign_areas",
     "small_pieces",
     "surface_fit",
 ]
@@ -49,6 +50,7 @@ LEVEL_HALF_WIDTH = 5.0  # mm/yr around the dominant level: the piece's good pixe
 FAST_MIN = 10.0  # mm/yr off the surface that marks a fast-moving area
 FAST_MIN_KM2 = 25.0  # smaller patches are left to the robust weights
 FAST_BUFFER_KM = 3.0  # margin kept out of the fit around a fast area
+MIXED_SHARE = 0.2  # minority-sign share of a fast area that marks an unwrapping area
 ROBUST_ITERATIONS = 3  # reweighted refits of a surface
 ROBUST_FLOOR = 5.0  # mm/yr: smallest Tukey cutoff, so quiet frames keep their pixels
 
@@ -202,6 +204,31 @@ def fast_areas(residual: np.ndarray, valid: np.ndarray, px_km: float) -> np.ndar
     return ndi.binary_dilation(keep, iterations=grow) & valid if keep.any() else keep
 
 
+def mixed_sign_areas(
+    residual: np.ndarray, fast: np.ndarray, valid: np.ndarray
+) -> np.ndarray:
+    """Fast areas that look like unwrapping errors, not ground motion.
+
+    Provisional rule (owner, 2026-11-12, option A): real deformation is
+    one-signed (a subsidence bowl); an unwrapping area in incoherent land (the
+    Everglades, F12638) carries strong positive and negative blobs side by
+    side. A connected fast area whose minority sign holds MIXED_SHARE or more
+    of its pixels at FAST_MIN or beyond is returned; the baseline blanks it.
+    To be replaced by a test on the inversion residual (see the finding in
+    cal-vlm-batch ``campaigns/na_coast/BASELINE.md``).
+    """
+    out = np.zeros(fast.shape, bool)
+    lab, n = ndi.label(fast)
+    if n == 0:
+        return out
+    sm = ndi.median_filter(np.where(valid, np.nan_to_num(residual), 0.0), size=5)
+    idx = np.arange(1, n + 1)
+    pos = ndi.sum(valid & (sm >= FAST_MIN), lab, idx)
+    neg = ndi.sum(valid & (sm <= -FAST_MIN), lab, idx)
+    share = np.minimum(pos, neg) / np.maximum(pos + neg, 1)
+    return np.isin(lab, idx[share >= MIXED_SHARE])
+
+
 def _piece_surface(
     rate: np.ndarray,
     grid: np.ndarray,
@@ -211,16 +238,16 @@ def _piece_surface(
     surface: Surface | None,
     auto_exclude: bool,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Surface of one piece and the fast areas left out of it."""
+    """Surface of one piece and its fast areas (2 = one-signed, 3 = mixed)."""
     surf = surface_fit(rate, grid, w, px_km, surface=surface)
-    fast = np.zeros(w.shape, bool)
+    code = np.zeros(w.shape, np.uint8)
     if auto_exclude:
         fast = fast_areas(rate - grid - surf, w, px_km)
         if fast.any() and (w & ~fast).sum() >= 0.3 * w.sum():
             surf = surface_fit(rate, grid, w & ~fast, px_km, surface=surface)
-        else:
-            fast[:] = False
-    return surf, fast
+            code[fast] = 2
+            code[mixed_sign_areas(rate - grid - surf, fast, w)] = 3
+    return surf, code
 
 
 def calibrate_two_pass(
@@ -263,7 +290,8 @@ def calibrate_two_pass(
     calibrated, island_shift, excluded : np.ndarray
         Calibrated rate (the island shift already removed), the shift of
         every labelled small piece (0 elsewhere), and the pixels left out of
-        the fit (1 = `fit_exclude`, 2 = fast area found here, 0 = fitted).
+        the fit (0 = fitted, 1 = `fit_exclude`, 2 = one-signed fast area found
+        here, 3 = mixed-sign fast area: an unwrapping area the caller blanks).
 
     """
     valid = np.asarray(valid, dtype=bool)
@@ -281,21 +309,21 @@ def calibrate_two_pass(
     frame_w = keep & ~np.isin(pieces, big + small)
     if frame_w.sum() < 0.3 * (valid & ~np.isin(pieces, big + small)).sum():
         frame_w = valid & ~np.isin(pieces, big + small)  # the mask covers the piece
-    surf, fast = _piece_surface(
+    surf, code = _piece_surface(
         rate, grid, frame_w, px_km, surface=surface, auto_exclude=auto_exclude
     )
     out = rate - surf
-    excluded[fast] = 2
+    excluded = np.maximum(excluded, code)
     lim = PIECE_MIN_KM2 / px_km**2
     for k in big:  # breaklines: a large piece is calibrated on its own pixels
         w = keep & (pieces == k)
         if w.sum() < lim / 10:
             continue
-        own, fast = _piece_surface(
+        own, code = _piece_surface(
             rate, grid, w, px_km, surface=surface, auto_exclude=auto_exclude
         )
         out = np.where(pieces == k, rate - own, out)
-        excluded[fast] = 2
+        excluded = np.maximum(excluded, code)
     for k in small:  # island pass: every small piece is judged, however small
         m = valid & (pieces == k)
         off = dominant_offset((out - grid)[m])
