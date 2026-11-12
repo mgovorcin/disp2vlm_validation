@@ -356,13 +356,18 @@ def analyse(
 # reference cells, or by an inversion residual RP_LR_EXCESS orders of magnitude above
 # the reference level's. A frame whose reference level is not clean (under
 # RP_PEAK_SHARE of the land, or median log residual above RP_CLEAN_LR) gets no shifts:
-# its errors are reported as "untrusted".
+# only its plain big errors (|bias| >= RP_BIG over >= RP_BIG_PX) are shifted; the rest
+# are reported as "untrusted". A level whose inversion residual is RP_LR_EXCESS orders
+# above the reference level's is an error from |bias| >= RP_STEP. Inside the closed
+# outline of the error levels, noise pixels closer to the error shift than to zero
+# take that shift.
 
 RP_STEP = 5.0  # mm/yr between neighbours that still connects them
 RP_FLAG = 10.0  # mm/yr bias that needs an edge step to confirm
 RP_BIG = 30.0  # mm/yr bias that is an error on its own
 RP_MIN_PX = 20  # 300 m cells; smaller pieces are speckle
 RP_PEAK_SHARE = 0.25
+RP_BIG_PX = 200  # an error by bias alone when the reference is not clean
 RP_CLEAN_LR = -2.0  # median log10 inversion residual of a clean reference level
 RP_TREND_KM = 9.4  # Gaussian sigma: half response at 50 km
 RP_EDGE_KM = (1.5, 5.0, 10.0, 20.0)
@@ -519,11 +524,14 @@ def edge_step(
 def resplane_verdict(bias: float, step: float, lr_excess: float = np.nan) -> str:
     """Classify a level: ok, error or candidate.
 
-    Error: bias >= RP_BIG; or >= RP_FLAG with an edge step of the same sign, or with
-    an inversion residual RP_LR_EXCESS orders above the reference level.
+    Error: bias >= RP_BIG; or >= RP_FLAG with an edge step of the same sign; or
+    >= RP_STEP with an inversion residual RP_LR_EXCESS orders above the reference level.
     """
-    if not np.isfinite(bias) or abs(bias) < RP_FLAG:
+    if not np.isfinite(bias) or abs(bias) < RP_STEP:
         return "ok"
+    if abs(bias) < RP_FLAG:
+        lr_hi = np.isfinite(lr_excess) and lr_excess >= RP_LR_EXCESS
+        return "error: inversion residual" if lr_hi else "ok"
     if abs(bias) >= RP_BIG:
         return "error: bias"
     if np.isfinite(step) and abs(step) >= RP_FLAG and np.sign(step) == np.sign(bias):
@@ -599,7 +607,11 @@ def resplane_analyse(
             if n >= RP_MIN_PX
             else "ok"
         )
-        if not clean and row["verdict"].startswith("error"):
+        if (
+            not clean
+            and row["verdict"].startswith("error")
+            and not (row["verdict"] == "error: bias" and n >= RP_BIG_PX)
+        ):
             row["verdict"] = "untrusted: " + row["verdict"]
         row["shift"] = float(b) if row["verdict"].startswith("error") else 0.0
         rows.append(row)
@@ -633,7 +645,9 @@ def absorb(
 
     Noise splits an error region into many small levels; a pixel outside every error
     level, within `km` of one, takes the shift of the nearest error pixel when its
-    detrended residual `rd` is within max(RP_STEP, 15 %) of that shift.
+    detrended residual `rd` is within max(RP_STEP, 15 %) of that shift. Inside the
+    outline of the error levels (closed over gaps of `km`), a pixel takes it when its
+    `rd` is closer to that shift than to zero.
     """
     shift = np.zeros(lab.shape)
     err = df[df.verdict.str.startswith("error")]
@@ -650,6 +664,17 @@ def absorb(
         & (lab > 0)
         & (d * px_km <= km)
         & (np.abs(rd - near) <= np.maximum(RP_STEP, 0.15 * np.abs(near)))
+    )
+    r = max(1, round(km / px_km))
+    yy, xx = np.mgrid[-r : r + 1, -r : r + 1]
+    disk = yy**2 + xx**2 <= r**2
+    pad = np.pad(em, r)
+    inside = ndi.binary_closing(pad, structure=disk)[r:-r, r:-r]
+    take |= (
+        inside
+        & (~em)
+        & (lab > 0)
+        & (np.abs(np.nan_to_num(rd) - near) < np.abs(np.nan_to_num(rd)))
     )
     shift[take] = near[take]
     return shift

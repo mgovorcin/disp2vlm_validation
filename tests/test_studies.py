@@ -538,18 +538,54 @@ def test_resplane_inversion_residual_confirms_a_far_piece():
         assert df.set_index("level").loc[lab[40, 280]].verdict == want
 
 
-def test_resplane_no_clean_reference_gives_no_shift():
-    """A frame whose reference level has a high inversion residual: errors untrusted."""
+def test_resplane_no_clean_reference_keeps_only_big_plain_errors():
+    """High inversion residual everywhere: a big +40 island is still shifted.
+
+    A small +40 piece (< RP_BIG_PX) is untrusted.
+    """
     ur = _load("unwrap_regions")
     h, w = 80, 200
     st, rng = _resplane_stack(h, w, logres=np.full((h, w), 0.5, np.float32))
-    st["water"][:, 150:160] = 0
+    st["water"][:, 150:160] = 0  # big island: cols 160+ (80 x 40 px)
+    st["water"][38:50, 123:147] = 0  # water ring around a small piece (8 x 20 px)
+    st["water"][40:48, 125:145] = 1
     rate = rng.normal(0, 0.5, (h, w))
     rate[:, 160:] += 40.0
+    rate[40:48, 125:145] += 40.0
     df, lab, info = ur.resplane_analyse(st, px_km=0.3, grid=np.zeros((h, w)), rate=rate)
-    isl = df.set_index("level").loc[lab[40, 180]]
-    assert not info["clean"] and isl.verdict == "untrusted: error: bias"
-    assert isl["shift"] == 0 and not info["shift"].any()
+    get = lambda r, c: df.set_index("level").loc[lab[r, c]]  # noqa: E731
+    assert not info["clean"]
+    assert get(60, 180).verdict == "error: bias" and abs(get(60, 180)["shift"] - 40) < 2
+    assert (
+        get(44, 135).verdict == "untrusted: error: bias" and get(44, 135)["shift"] == 0
+    )
+
+
+def test_resplane_inversion_residual_flags_a_small_bias():
+    """+8 (under RP_FLAG) is an error only when its inversion residual is high."""
+    ur = _load("unwrap_regions")
+    assert ur.resplane_verdict(8.0, np.nan, 5.9) == "error: inversion residual"
+    assert ur.resplane_verdict(8.0, np.nan, 0.5) == "ok"
+    assert ur.resplane_verdict(3.0, np.nan, 5.9) == "ok"
+
+
+def test_resplane_absorbs_noise_inside_the_error_outline():
+    """A noisy pixel inside an error block, far from its shift, still takes it."""
+    ur = _load("unwrap_regions")
+    lab = np.ones((20, 40), int)
+    lab[5:15, 20:35] = 2
+    lab[10, 27] = 3  # noise pixel inside block 2
+    df = pd.DataFrame(
+        {
+            "level": [1, 2, 3],
+            "bias": [0.0, 40.0, 25.0],
+            "verdict": ["ok", "error: bias", "ok"],
+        }
+    )
+    rd = np.where(lab == 2, 40.0, 0.0)
+    rd[10, 27] = 25.0
+    sh = ur.absorb(lab, df, rd, px_km=0.3)
+    assert sh[10, 27] == 40.0 and sh[0, 0] == 0.0
 
 
 def test_resplane_absorbs_noise_specks_into_the_error_level():
