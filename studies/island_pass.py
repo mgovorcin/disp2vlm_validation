@@ -35,6 +35,7 @@ from scipy import ndimage as ndi
 __all__ = [
     "calibrate_two_pass",
     "dominant_offset",
+    "fast_areas",
     "land_pieces",
     "small_pieces",
     "surface_fit",
@@ -45,6 +46,11 @@ PIECE_MIN_KM2 = 97.0  # Venti surface.piece_min_pixels (3000 cells at 180 m)
 BRIDGE_KM = 1.5  # closing radius: gaps of about twice this are bridged over land
 ISLAND_MIN = 5.0  # mm/yr off the surface that labels a small piece
 LEVEL_HALF_WIDTH = 5.0  # mm/yr around the dominant level: the piece's good pixels
+FAST_MIN = 10.0  # mm/yr off the surface that marks a fast-moving area
+FAST_MIN_KM2 = 25.0  # smaller patches are left to the robust weights
+FAST_BUFFER_KM = 3.0  # margin kept out of the fit around a fast area
+ROBUST_ITERATIONS = 3  # reweighted refits of a surface
+ROBUST_FLOOR = 5.0  # mm/yr: smallest Tukey cutoff, so quiet frames keep their pixels
 
 Surface = Callable[
     [np.ndarray, np.ndarray, float, float, np.ndarray | None], np.ndarray
@@ -119,24 +125,9 @@ def _venti_surface(
     return loclin_surface(field, weight, pixel_m, cutoff_m, fallback=fallback)[0]
 
 
-def surface_fit(
-    rate: np.ndarray,
-    grid: np.ndarray,
-    weight: np.ndarray,
-    px_km: float,
-    *,
-    surface: Surface | None = None,
+def _fit_once(
+    field: np.ndarray, w: np.ndarray, px_km: float, fit: Surface
 ) -> np.ndarray:
-    """Calibration surface of ``rate - grid`` fitted on the `weight` pixels.
-
-    Valid pixels outside `weight` are left out of the fit, so they must not
-    reach the surface through its low-coverage fallback either: the fallback
-    is a normalized Gaussian of the weighted field (nearest value where no
-    weight is in reach), not the smoothed field Venti uses by default.
-    """
-    fit = _venti_surface if surface is None else surface
-    field = np.where(np.isfinite(rate) & np.isfinite(grid), rate - grid, 0.0)
-    w = np.asarray(weight, dtype=float)
     sigma = CUTOFF_KM / px_km * float(np.sqrt(np.log(2.0) / 2.0) / np.pi)
     num = ndi.gaussian_filter(field * w, sigma, mode="nearest")
     den = ndi.gaussian_filter(w, sigma, mode="nearest")
@@ -151,6 +142,86 @@ def surface_fit(
     return fit(field, w, px_km * 1000.0, CUTOFF_KM * 1000.0, fallback)
 
 
+def surface_fit(
+    rate: np.ndarray,
+    grid: np.ndarray,
+    weight: np.ndarray,
+    px_km: float,
+    *,
+    surface: Surface | None = None,
+    robust: bool = True,
+) -> np.ndarray:
+    """Calibration surface of ``rate - grid`` fitted on the `weight` pixels.
+
+    Valid pixels outside `weight` are left out of the fit, so they must not
+    reach the surface through its low-coverage fallback either: the fallback
+    is a normalized Gaussian of the weighted field (nearest value where no
+    weight is in reach), not the smoothed field Venti uses by default.
+
+    `robust`: the fit is repeated with Tukey biweights on the residuals
+    (cutoff 4.685 x their NMAD, at least ROBUST_FLOOR), so a local signal (a
+    subsidence bowl, an unwrapping patch) does not bend the surface around it.
+    """
+    fit = _venti_surface if surface is None else surface
+    field = np.where(np.isfinite(rate) & np.isfinite(grid), rate - grid, 0.0)
+    w0 = np.asarray(weight, dtype=float)
+    out = _fit_once(field, w0, px_km, fit)
+    if not robust or not (w0 > 0).any():
+        return out
+    for _ in range(ROBUST_ITERATIONS):
+        res = field - out
+        r = res[w0 > 0]
+        scale = 1.4826 * float(np.median(np.abs(r - np.median(r))))
+        cut = max(4.685 * scale, ROBUST_FLOOR)
+        u = np.clip(np.abs(res - np.median(r)) / cut, 0.0, 1.0)
+        w = w0 * (1.0 - u**2) ** 2
+        if w.sum() < 0.2 * w0.sum():  # keep a fit: never drop most of the piece
+            break
+        out = _fit_once(field, w, px_km, fit)
+    return out
+
+
+def fast_areas(residual: np.ndarray, valid: np.ndarray, px_km: float) -> np.ndarray:
+    """Fast-moving areas of a calibrated residual (deformation mask).
+
+    Pixels whose median-filtered residual is FAST_MIN or more off zero, in
+    connected patches of at least FAST_MIN_KM2, grown by FAST_BUFFER_KM. A
+    subsidence bowl (Mexico City, the Central Valley) or an unwrapping patch
+    joined to the mainland must stay out of the calibration surface; this
+    finds them where no hand-drawn polygon exists.
+    """
+    valid = np.asarray(valid, dtype=bool)
+    sm = ndi.median_filter(np.where(valid, np.nan_to_num(residual), 0.0), size=5)
+    hot = valid & (np.abs(sm) >= FAST_MIN)
+    lab, n = ndi.label(hot)
+    if n == 0:
+        return np.zeros(valid.shape, bool)
+    size = ndi.sum(hot, lab, np.arange(1, n + 1))
+    keep = np.isin(lab, np.nonzero(size >= FAST_MIN_KM2 / px_km**2)[0] + 1)
+    grow = max(1, round(FAST_BUFFER_KM / px_km))
+    return ndi.binary_dilation(keep, iterations=grow) & valid if keep.any() else keep
+
+
+def _piece_surface(
+    rate: np.ndarray,
+    grid: np.ndarray,
+    w: np.ndarray,
+    px_km: float,
+    surface: Surface | None,
+    auto_exclude: bool,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Surface of one piece and the fast areas left out of it."""
+    surf = surface_fit(rate, grid, w, px_km, surface=surface)
+    fast = np.zeros(w.shape, bool)
+    if auto_exclude:
+        fast = fast_areas(rate - grid - surf, w, px_km)
+        if fast.any() and (w & ~fast).sum() >= 0.3 * w.sum():
+            surf = surface_fit(rate, grid, w & ~fast, px_km, surface=surface)
+        else:
+            fast[:] = False
+    return surf, fast
+
+
 def calibrate_two_pass(
     rate: np.ndarray,
     grid: np.ndarray,
@@ -159,8 +230,10 @@ def calibrate_two_pass(
     px_km: float,
     *,
     island_min: float = ISLAND_MIN,
+    fit_exclude: np.ndarray | None = None,
+    auto_exclude: bool = True,
     surface: Surface | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Calibrate a velocity map with breaklines and the island pass.
 
     Parameters
@@ -175,37 +248,52 @@ def calibrate_two_pass(
         Pixel size in km.
     island_min : float
         Offset from the surface (mm/yr) that labels a small piece.
+    fit_exclude : np.ndarray, optional
+        Deformation mask: pixels that are calibrated but never fitted (known
+        deformation areas).
+    auto_exclude : bool
+        Also leave the `fast_areas` of each piece out of its surface.
     surface : callable, optional
         ``surface(field, weight, pixel_m, cutoff_m, fallback) -> ndarray``;
         Venti's `loclin_surface` when omitted.
 
     Returns
     -------
-    calibrated, island_shift : np.ndarray
-        Calibrated rate (the island shift already removed) and the shift of
-        every labelled small piece (0 elsewhere).
+    calibrated, island_shift, excluded : np.ndarray
+        Calibrated rate (the island shift already removed), the shift of
+        every labelled small piece (0 elsewhere), and the pixels left out of
+        the fit (1 = `fit_exclude`, 2 = fast area found here, 0 = fitted).
 
     """
     valid = np.asarray(valid, dtype=bool)
     shift = np.zeros(rate.shape)
+    excluded = np.zeros(rate.shape, np.uint8)
+    keep = valid.copy()
+    if fit_exclude is not None:
+        known = valid & np.asarray(fit_exclude, dtype=bool)
+        excluded[known] = 1
+        keep &= ~known
     ids, cnt = _piece_sizes(pieces)
-    if ids.size == 0:
-        return rate - surface_fit(rate, grid, valid, px_km, surface=surface), shift
-    small = small_pieces(pieces, px_km)
-    main = ids[cnt.argmax()]
+    small = small_pieces(pieces, px_km) if ids.size else []
+    main = ids[cnt.argmax()] if ids.size else 0
     big = [int(k) for k in ids if k != main and int(k) not in small]
-    frame_w = valid & ~np.isin(pieces, big + small)
-    out = rate - surface_fit(rate, grid, frame_w, px_km, surface=surface)
+    frame_w = keep & ~np.isin(pieces, big + small)
+    if frame_w.sum() < 0.3 * (valid & ~np.isin(pieces, big + small)).sum():
+        frame_w = valid & ~np.isin(pieces, big + small)  # the mask covers the piece
+    surf, fast = _piece_surface(rate, grid, frame_w, px_km, surface, auto_exclude)
+    out = rate - surf
+    excluded[fast] = 2
     lim = PIECE_MIN_KM2 / px_km**2
     for k in big:  # breaklines: a large piece is calibrated on its own pixels
-        w = valid & (pieces == k)
+        w = keep & (pieces == k)
         if w.sum() < lim / 10:
             continue
-        own = rate - surface_fit(rate, grid, w, px_km, surface=surface)
-        out = np.where(pieces == k, own, out)
+        own, fast = _piece_surface(rate, grid, w, px_km, surface, auto_exclude)
+        out = np.where(pieces == k, rate - own, out)
+        excluded[fast] = 2
     for k in small:  # island pass: every small piece is judged, however small
         m = valid & (pieces == k)
         off = dominant_offset((out - grid)[m])
         if np.isfinite(off) and abs(off) >= island_min:
             shift[pieces == k] = off
-    return out - shift, shift
+    return out - shift, shift, excluded

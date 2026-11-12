@@ -375,14 +375,14 @@ def test_island_pass_sets_an_offset_island_onto_the_surface():
     """A +30 mm/yr island: out of the fit, then shifted whole onto the surface."""
     ip = _load("island_pass")
     rate, grid, land = _island_frame()
-    clean, _ = ip.calibrate_two_pass(
+    clean, _, _ = ip.calibrate_two_pass(
         rate, grid, land, ip.land_pieces(land, land, 0.3), 0.3, surface=_fake_surface
     )
     island = np.zeros(land.shape, bool)
     island[50:70, 126:146] = True
     rate[island] += 30.0
     pieces = ip.land_pieces(land, land, 0.3)
-    cal, shift = ip.calibrate_two_pass(
+    cal, shift, _ = ip.calibrate_two_pass(
         rate, grid, land, pieces, 0.3, surface=_fake_surface
     )
     assert abs(np.median(shift[island]) - 30.0) < 1.0 and not shift[~island].any()
@@ -397,7 +397,7 @@ def test_island_pass_leaves_a_small_offset_alone():
     rate, grid, land = _island_frame()
     rate[50:70, 126:146] += 3.0  # under ISLAND_MIN
     pieces = ip.land_pieces(land, land, 0.3)
-    _, shift = ip.calibrate_two_pass(
+    _, shift, _ = ip.calibrate_two_pass(
         rate, grid, land, pieces, 0.3, surface=_fake_surface
     )
     assert not shift.any()
@@ -410,10 +410,73 @@ def test_island_pass_judges_a_two_pixel_piece():
     land[10, 130:132] = True
     rate[10, 130:132] = 3.0 + 0.02 * 130 - 16.0
     pieces = ip.land_pieces(land, land, 0.3)
-    cal, shift = ip.calibrate_two_pass(
+    cal, shift, _ = ip.calibrate_two_pass(
         rate, grid, land, pieces, 0.3, surface=_fake_surface
     )
     assert abs(shift[10, 130] + 16.0) < 1.5 and abs(cal[10, 130]) < 1.5
+
+
+def test_surface_fit_is_not_bent_by_a_local_bowl():
+    """A -50 mm/yr bowl of 12 km: the robust surface leaves no halo around it."""
+    ip = _load("island_pass")
+    h, w = 200, 200
+    rng = np.random.default_rng(2)
+    yy, xx = np.mgrid[:h, :w]
+    bowl = -50.0 * np.exp(-((yy - 100) ** 2 + (xx - 100) ** 2) / (2 * 20.0**2))
+    rate = 2.0 + rng.normal(0, 0.5, (h, w)) + bowl
+    valid = np.ones((h, w), bool)
+    ring = (np.hypot(yy - 100, xx - 100) > 70) & (np.hypot(yy - 100, xx - 100) < 90)
+    kw = {"surface": _fake_surface}
+    plain = rate - ip.surface_fit(
+        rate, np.zeros((h, w)), valid, 0.3, robust=False, **kw
+    )
+    robust = rate - ip.surface_fit(rate, np.zeros((h, w)), valid, 0.3, **kw)
+    assert np.median(plain[ring]) > 1.0  # the plain surface is pulled down: a halo
+    assert abs(np.median(robust[ring])) < 0.5
+    assert robust[100, 100] < -45.0  # and the bowl keeps its depth
+
+
+def test_fast_area_is_found_and_left_out_of_the_fit():
+    """A 30 km wide -40 mm/yr bowl: found as a fast area; no halo; depth kept."""
+    ip = _load("island_pass")
+    h, w = 300, 300
+    rng = np.random.default_rng(3)
+    yy, xx = np.mgrid[:h, :w]
+    d = np.hypot(yy - 150, xx - 150)
+    rate = 1.0 + rng.normal(0, 0.5, (h, w)) - 40.0 * np.exp(-(d**2) / (2 * 50.0**2))
+    valid = np.ones((h, w), bool)
+    pieces = ip.land_pieces(valid, valid, 0.3)
+    kw = {"surface": _fake_surface}
+    cal, _, excl = ip.calibrate_two_pass(
+        rate, np.zeros((h, w)), valid, pieces, 0.3, **kw
+    )
+    off, _, none = ip.calibrate_two_pass(
+        rate, np.zeros((h, w)), valid, pieces, 0.3, auto_exclude=False, **kw
+    )
+    assert excl[150, 150] == 2 and excl[5, 5] == 0 and not none.any()
+    far = d > 130
+    assert abs(np.median(cal[far])) < abs(np.median(off[far])) + 0.05
+    assert cal[150, 150] < off[150, 150] - 1.0  # more of the bowl is kept
+
+
+def test_fit_exclude_marks_a_known_deformation_area():
+    ip = _load("island_pass")
+    rate, grid, land = _island_frame()
+    known = np.zeros(land.shape, bool)
+    known[20:40, 20:40] = True
+    rate[known] -= 30.0
+    pieces = ip.land_pieces(land, land, 0.3)
+    cal, _, excl = ip.calibrate_two_pass(
+        rate,
+        grid,
+        land,
+        pieces,
+        0.3,
+        fit_exclude=known,
+        auto_exclude=False,
+        surface=_fake_surface,
+    )
+    assert (excl[known] == 1).all() and np.median(cal[known]) < -27.0
 
 
 def test_land_pieces_bridge_gaps_over_land_but_never_over_water():
