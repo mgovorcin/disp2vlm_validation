@@ -344,3 +344,272 @@ def test_edge_cases_spans_and_identical():
     assert not ec.spans("20190710_20190722", t0)
     a = np.array([1.0, np.nan])
     assert ec.identical(a, a.copy()) and not ec.identical(a, np.array([1.0, 2.0]))
+
+
+def _region_stack(seed=0):
+    """Three land pieces split by water.
+
+    A (reference), B drifting +60 mm/yr in a separate unwrapper
+    component with raised residual, C in ministack offsets (summer ministacks +40 mm).
+    """
+    rng = np.random.default_rng(seed)
+    h, w, n = 60, 150, 150
+    water = np.ones((h, w))
+    water[:, 48:52] = 0
+    water[:, 98:102] = 0
+    t0 = datetime(2017, 1, 1)
+    sec = [(t0 + timedelta(days=12 * (i + 1))).strftime("%Y%m%d") for i in range(n)]
+    ref = [
+        (t0 if i < 15 else t0 + timedelta(days=12 * (15 * (i // 15)))).strftime(
+            "%Y%m%d"
+        )
+        for i in range(n)
+    ]
+    years = np.arange(1, n + 1) * 12 / 365.25
+    atmo = rng.normal(0, 3, n)  # shared by the whole frame
+    cum = (
+        np.zeros((n, h, w), np.float32)
+        + atmo[:, None, None]
+        + rng.normal(0, 1, (n, h, w))
+    )
+    cum[:, :, 52:98] += (60 * years)[:, None, None]
+    summer = ((np.arange(n) // 15) % 2 == 1).astype(float)
+    cum[:, :, 102:] += (40 * summer)[:, None, None]
+    logres = np.full((n, h, w), -5.0, np.float32)
+    logres[:, :, 52:98] = -1.0
+    cc = np.ones((n, h, w), np.int16)
+    cc[:, :, 52:98] = 2
+    coh = np.full((n, h, w), 0.9, np.float32)
+    return {
+        "cum": cum,
+        "logres": logres,
+        "cc": cc,
+        "coh": coh,
+        "water": water,
+        "ref": ref,
+        "sec": sec,
+    }
+
+
+def test_unwrap_regions_classifies_drift_rebase_offsets_and_ties_to_gnss():
+    ur = _load("unwrap_regions")
+    st = _region_stack()
+    flat = np.zeros(st["water"].shape)
+    df, lab, refl = ur.analyse(st, px_km=0.3, gnss={"grid": flat})
+    assert (lab == refl)[:, :48].all()
+    b = df.loc[df.col.between(52, 98)].iloc[0]
+    c = df.loc[df.col > 102].iloc[0]
+    assert (
+        b.verdict == "error: off GNSS surface"
+    )  # a smooth drift: only the GNSS tie catches it
+    assert b.sep > 0.9 and abs(b.rate - 60) < 3 and abs(b.grid_shift - 60) < 3
+    assert c.verdict == "error: steps at rebases" and c.big_at_rebase > 0.9
+    assert abs(c.grid_expected) < 1e-9
+
+
+def test_unwrap_regions_tests_islands_far_across_water():
+    """An island more than 40 km from the reference is still tested (wider ring)."""
+    ur = _load("unwrap_regions")
+    rng = np.random.default_rng(1)
+    h, w, n = 40, 260, 120
+    water = np.zeros((h, w))
+    water[:, :70] = 1  # reference: the largest piece
+    water[:, 230:] = 1  # 160 px = 48 km of water at 0.3 km
+    t0 = datetime(2017, 1, 1)
+    sec = [(t0 + timedelta(days=12 * (i + 1))).strftime("%Y%m%d") for i in range(n)]
+    ref = [t0.strftime("%Y%m%d")] * n
+    years = np.arange(1, n + 1) * 12 / 365.25
+    cum = rng.normal(0, 1, (n, h, w)).astype(np.float32)
+    cum[:, :, 230:] += (60 * years)[:, None, None]
+    cc = np.ones((n, h, w), np.int16)
+    cc[:, :, 230:] = 2
+    st = {
+        "cum": cum,
+        "logres": np.full((n, h, w), -5.0, np.float32),
+        "cc": cc,
+        "coh": np.full((n, h, w), 0.9, np.float32),
+        "water": water,
+        "ref": ref,
+        "sec": sec,
+    }
+    df, lab, refl = ur.analyse(st, px_km=0.3, gnss={"grid": np.zeros((h, w))})
+    assert (lab == refl)[:, :70].all()
+    island = df.loc[df.col > 230].iloc[0]
+    assert island.ring_km == 80.0
+    assert island.verdict.startswith("error") and abs(island.grid_shift - 60) < 3
+
+
+def test_unwrap_regions_chain_and_tie():
+    ur = _load("unwrap_regions")
+    d = np.ones((3, 2, 2), np.float32)
+    out = ur.chain(
+        ["20200101", "20200101", "20200113"], ["20200113", "20200125", "20200206"], d
+    )
+    assert out[:, 0, 0].tolist() == [
+        1,
+        1,
+        2,
+    ]  # the third product starts from the first one's level
+    m = np.zeros((20, 20), bool)
+    m[:5] = True
+    rg = np.zeros((20, 20), bool)
+    rg[10:] = True
+    surf = np.where(m, 3.0, 1.0)
+    assert ur.gnss_tie(m, rg, surf) == 2.0
+    assert np.isnan(ur.gnss_tie(m, rg, np.full((20, 20), np.nan)))
+
+
+def _resplane_stack(h=80, w=200, n=30, logres=None):
+    rng = np.random.default_rng(3)
+    t0 = datetime(2017, 1, 1)
+    sec = [(t0 + timedelta(days=12 * (i + 1))).strftime("%Y%m%d") for i in range(n)]
+    lr = (
+        np.full((n, h, w), -5.0, np.float32)
+        if logres is None
+        else np.broadcast_to(logres, (n, h, w)).copy()
+    )
+    return {
+        "cum": np.zeros((n, h, w), np.float32),
+        "logres": lr,
+        "cc": np.ones((n, h, w), np.int16),
+        "coh": np.full((n, h, w), 0.9, np.float32),
+        "water": np.ones((h, w)),
+        "ref": [t0.strftime("%Y%m%d")] * n,
+        "sec": sec,
+    }, rng
+
+
+def test_resplane_separates_steps_from_ramps():
+    """Island +40: error by bias. Inland block +15 with a step: error by edge step.
+
+    A smooth +15 ramp with no step: ok.
+    """
+    ur = _load("unwrap_regions")
+    st, rng = _resplane_stack()
+    h, w = st["water"].shape
+    st["water"][:, 150:160] = 0  # island at cols 160+
+    rate = rng.normal(0, 0.5, (h, w))
+    rate[40:, :150] += np.linspace(0, 15, 150)[None, :]  # smooth ramp in the lower half
+    rate[5:25, 60:100] += 15.0  # inland step block
+    rate[:, 160:] += 40.0  # island
+    grid = np.zeros((h, w))
+    df, lab, _info = ur.resplane_analyse(st, px_km=0.3, grid=grid, rate=rate)
+    get = lambda r, c: df.set_index("level").loc[lab[r, c]]  # noqa: E731
+    assert get(40, 180).verdict == "error: bias" and abs(get(40, 180).bias - 40) < 2
+    blk = get(15, 80)
+    assert blk.verdict == "error: edge step" and abs(blk["shift"] - 15) < 2
+    assert get(70, 140).verdict == "ok"  # end of the ramp: no step, left to calibration
+
+
+def test_resplane_reference_follows_the_lower_inversion_residual():
+    """Two halves 40 mm/yr apart: the one with the higher residual is the error."""
+    ur = _load("unwrap_regions")
+    h, w = 80, 200
+    lr = np.full((h, w), -5.0, np.float32)
+    lr[:, 100:] = -2.0  # right half: inconsistent unwrapping
+    st, rng = _resplane_stack(h, w, logres=lr)
+    st["water"][:, 98:102] = 0
+    rate = rng.normal(0, 0.5, (h, w))
+    rate[:, 102:] += 40.0
+    df, lab, info = ur.resplane_analyse(st, px_km=0.3, grid=np.zeros((h, w)), rate=rate)
+    right = df.set_index("level").loc[lab[40, 150]]
+    left = df.set_index("level").loc[lab[40, 50]]
+    assert abs(info["r0"]) < 3 and left.verdict == "ok"
+    assert right.verdict == "error: bias" and abs(right["shift"] - 40) < 2
+
+
+def test_resplane_inversion_residual_confirms_a_far_piece():
+    """A far +15 island: candidate; error when its residual is 3 orders higher."""
+    ur = _load("unwrap_regions")
+    for lr_isl, want in (
+        (-5.0, "candidate: no reference nearby"),
+        (-2.0, "error: inversion residual"),
+    ):
+        h, w = 80, 300
+        lr = np.full((h, w), -5.0, np.float32)
+        lr[:, 250:] = lr_isl
+        st, rng = _resplane_stack(h, w, logres=lr)
+        st["water"][:, 160:250] = 0  # 27 km of water
+        rate = rng.normal(0, 0.5, (h, w))
+        rate[:, 250:] += 15.0
+        df, lab, _info = ur.resplane_analyse(
+            st, px_km=0.3, grid=np.zeros((h, w)), rate=rate
+        )
+        assert df.set_index("level").loc[lab[40, 280]].verdict == want
+
+
+def test_resplane_no_clean_reference_keeps_only_big_plain_errors():
+    """High inversion residual everywhere: a big +40 island is still shifted.
+
+    A small +40 piece (< RP_BIG_PX) is untrusted.
+    """
+    ur = _load("unwrap_regions")
+    h, w = 80, 200
+    st, rng = _resplane_stack(h, w, logres=np.full((h, w), 0.5, np.float32))
+    st["water"][:, 150:160] = 0  # big island: cols 160+ (80 x 40 px)
+    st["water"][38:50, 123:147] = 0  # water ring around a small piece (8 x 20 px)
+    st["water"][40:48, 125:145] = 1
+    rate = rng.normal(0, 0.5, (h, w))
+    rate[:, 160:] += 40.0
+    rate[40:48, 125:145] += 40.0
+    df, lab, info = ur.resplane_analyse(st, px_km=0.3, grid=np.zeros((h, w)), rate=rate)
+    get = lambda r, c: df.set_index("level").loc[lab[r, c]]  # noqa: E731
+    assert not info["clean"]
+    assert get(60, 180).verdict == "error: bias" and abs(get(60, 180)["shift"] - 40) < 2
+    assert (
+        get(44, 135).verdict == "untrusted: error: bias" and get(44, 135)["shift"] == 0
+    )
+
+
+def test_resplane_inversion_residual_flags_a_small_bias():
+    """+8 (under RP_FLAG) is an error only when its inversion residual is high."""
+    ur = _load("unwrap_regions")
+    assert ur.resplane_verdict(8.0, np.nan, 5.9) == "error: inversion residual"
+    assert ur.resplane_verdict(8.0, np.nan, 0.5) == "ok"
+    assert ur.resplane_verdict(3.0, np.nan, 5.9) == "ok"
+
+
+def test_resplane_absorbs_noise_inside_the_error_outline():
+    """A noisy pixel inside an error block, far from its shift, still takes it."""
+    ur = _load("unwrap_regions")
+    lab = np.ones((20, 40), int)
+    lab[5:15, 20:35] = 2
+    lab[10, 27] = 3  # noise pixel inside block 2
+    df = pd.DataFrame(
+        {
+            "level": [1, 2, 3],
+            "bias": [0.0, 40.0, 25.0],
+            "verdict": ["ok", "error: bias", "ok"],
+        }
+    )
+    rd = np.where(lab == 2, 40.0, 0.0)
+    rd[10, 27] = 25.0
+    sh = ur.absorb(lab, df, rd, px_km=0.3)
+    assert sh[10, 27] == 40.0 and sh[0, 0] == 0.0
+
+
+def test_resplane_absorbs_noise_specks_into_the_error_level():
+    ur = _load("unwrap_regions")
+    lab = np.array([[1, 1, 2, 3, 3]])
+    df = pd.DataFrame(
+        {
+            "level": [1, 2, 3],
+            "bias": [0.0, 7.0, 40.0],
+            "verdict": ["ok", "ok", "error: bias"],
+        }
+    )
+    rd = np.array([[0.0, 0.0, 38.0, 40.0, 40.0]])
+    sh = ur.absorb(lab, df, rd, px_km=0.3)
+    assert sh.tolist() == [
+        [0.0, 0.0, 40.0, 40.0, 40.0]
+    ]  # the speck at 38 joins; the reference does not
+
+
+def test_resplane_rate_map():
+    ur = _load("unwrap_regions")
+    years = np.arange(30) * 12 / 365.25
+    cum = (5.0 * years)[:, None, None] * np.ones((30, 3, 3))
+    good = np.ones(cum.shape, bool)
+    good[:, 0, 0] = False
+    r = ur.rate_map(cum, years, good)
+    assert np.isnan(r[0, 0]) and np.allclose(r[1:, 1:], 5.0)
