@@ -34,10 +34,11 @@ Median / RMSE / NMAD against GNSS on gated stations, in mm/yr. Stations with und
 |---|---|---|---|---|---|
 | F23211 Hawaii | 12 | +0.94 / 2.57 / 2.07 | +2.81 / 3.44 / 1.71 | +2.20 / 3.19 / 1.58 | RMSE +0.62, limit 0.2 |
 | F08886 Oklahoma City | 16 | −0.11 / 1.06 / 1.14 | +0.61 / 1.35 / 0.63 | −0.58 / 1.33 / 1.51 | RMSE +0.27, limit 0.2 |
-| F08882 Houston | 50 | +0.37 / 4.36 / 2.45 | not run | +0.13 / 3.61 / 1.65 | Subsiding class RMSE 3.87, limit 2.53 |
+| F08882 Houston | 50 | +0.37 / 4.36 / 2.45 | +0.22 / 4.80 / 2.41 | +0.13 / 3.61 / 1.65 | Subsiding class RMSE 3.87, limit 2.53 |
 
 Runs are in `cal_disp_e2e/t58bench`: `runs/` holds 0.5.8 and `attrib/runs/` holds
-#55 alone. Hawaii and Oklahoma City both also fail with #55 alone.
+#55 alone, except F08882 (see its section). All three frames fail with #55 alone,
+and on each of them #55 alone is worse than the baseline.
 
 ### Hawaii
 
@@ -68,7 +69,10 @@ Runs are in `cal_disp_e2e/t58bench`: `runs/` holds 0.5.8 and `attrib/runs/` hold
   3.87 against 4.97 mm/yr. Raw (2.35) is still better in this class.
 - **The frame improves overall:** gated RMSE 4.36 → 3.61 mm/yr and DD sill −15%
   [−21.5, −8.5] against the baseline.
-- **The fixes have not been separated here.** No #55-only run exists for F08882.
+- **#55 alone makes it worse, and #57 brings it back** (added 2026-11-14): with #55
+  alone the gated RMSE is 4.80 and the subsiding class 6.14 mm/yr. Run
+  `cal_disp_e2e/runs/F08882-fixonly` (2026-10-31; Venti `9689d4d`, power 8, table
+  0.9, same baseline and gate file), scored in `t57/fix058/fixonly/F08882`.
 - **The errors near Galveston and Matagorda in decision 0006 still apply** to users.
 
 ## Revisit
