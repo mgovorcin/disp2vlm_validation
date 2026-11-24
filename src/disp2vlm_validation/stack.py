@@ -10,7 +10,9 @@ secondary dates. Calibrated displacement is ``DISP - calibration``.
 
 Epochs are chained across reference-date blocks as
 ``opera_utils.disp.create_rebased_displacement`` does: the last cumulative
-value of a block is the offset of the next one.
+value of a block is the offset of the next one. A block whose reference date
+is not the previous secondary date follows a gap that no pair bridges; the
+velocity fit gives each side of such a gap its own intercept.
 """
 
 from __future__ import annotations
@@ -26,6 +28,7 @@ import h5py
 import numpy as np
 
 __all__ = [
+    "GAP_DAYS",
     "Epoch",
     "VelocityFit",
     "apply_calibration",
@@ -41,6 +44,9 @@ DISP_GLOB = "OPERA_L3_DISP-*.nc"
 CAL_GLOB = "OPERA_L4_DISP-CAL-*.nc"
 _EPOCH0 = datetime(2000, 1, 1)
 DAYS_PER_YEAR = 365.25
+#: a block whose reference date is further than this from the previous
+#: secondary date follows a gap no pair bridges (`VelocityFit`)
+GAP_DAYS = 1.5
 
 
 def parse_dates(name: str) -> tuple[datetime, datetime]:
@@ -205,28 +211,71 @@ def stream_epochs(
 class VelocityFit:
     """Streaming per-pixel OLS of chained cumulative displacement against time.
 
+    A block chains onto the one before when its reference date is the
+    secondary date of the previous epoch (within `gap_days`); its offset is
+    then that epoch's cumulative value. A block that starts anywhere else
+    follows a data gap that no pair bridges, so the offset across the gap is
+    unknown: it starts a new segment. Each segment gets its own intercept and
+    all segments share one slope, so a gap adds no displacement of its own.
+    Without a gap the fit is the ordinary single-intercept OLS.
+
+    The returned cumulative is still chained across a gap (offset = last
+    cumulative), which is arbitrary there; only the slope accounts for it.
+
     Buffers are preallocated and updated in place: fresh full-frame
     temporaries every epoch cost more in page faults than the arithmetic.
+    The sums of closed segments are allocated at the first gap only.
     """
 
-    def __init__(self, shape: tuple[int, int], t0: float) -> None:
+    def __init__(
+        self, shape: tuple[int, int], t0: float, gap_days: float = GAP_DAYS
+    ) -> None:
         self.t0 = t0
+        self.gap = gap_days / DAYS_PER_YEAR
+        # open segment: n, st, sy; whole stack: st2, sty
         self.n, self.st, self.st2, self.sy, self.sty = (
             np.zeros(shape) for _ in range(5)
         )
+        # closed segments: epochs and the centring terms sum(st^2/n), sum(st*sy/n)
+        self.n_closed = self.cxx = self.cxy = None
         self.offset, self.cum, self.tmp = (np.zeros(shape) for _ in range(3))
         self.ok = np.zeros(shape, dtype=bool)
         self.block: object = None
+        self.last_t: float | None = None
+        self.segments = 0
+        self.gaps: list[tuple[float, float]] = []
 
     def add(
-        self, block_key: object, t: float, disp_m: np.ndarray, mask: np.ndarray
+        self,
+        block_key: object,
+        t: float,
+        disp_m: np.ndarray,
+        mask: np.ndarray,
+        ref_t: float | None = None,
     ) -> np.ndarray:
-        """Add an epoch of block `block_key` (its reference date); return cumulative."""
+        """Add an epoch of block `block_key` (its reference date); return cumulative.
+
+        `ref_t` is the block's reference date as a decimal year; when omitted
+        it is taken from a ``datetime`` `block_key`. Without either, blocks
+        always chain (no gap detection).
+        """
         if block_key != self.block:
-            if self.block is not None:
+            if ref_t is None and isinstance(block_key, datetime):
+                ref_t = decimal_year(block_key)
+            if self.block is None:
+                self.segments = 1
+            else:
                 np.copyto(
                     self.offset, self.cum
                 )  # last cumulative of the previous block
+                last = self.last_t
+                if (
+                    ref_t is not None
+                    and last is not None
+                    and abs(ref_t - last) > self.gap
+                ):
+                    self._close_segment()
+                    self.gaps.append((last, ref_t))
             self.block = block_key
         np.add(self.offset, disp_m, out=self.cum)
         np.isfinite(self.cum, out=self.ok)
@@ -238,14 +287,43 @@ class VelocityFit:
         np.add(self.sy, self.cum, out=self.sy, where=self.ok)
         np.multiply(self.cum, tt, out=self.tmp)
         np.add(self.sty, self.tmp, out=self.sty, where=self.ok)
+        self.last_t = t
         return self.cum
 
+    def _centring(self) -> tuple[np.ndarray, np.ndarray]:
+        """``st^2/n`` and ``st*sy/n`` of the open segment (0 where it is empty)."""
+        has = self.n > 0
+        xx = np.divide(self.st * self.st, self.n, out=np.zeros_like(self.n), where=has)
+        xy = np.divide(self.st * self.sy, self.n, out=np.zeros_like(self.n), where=has)
+        return xx, xy
+
+    def _close_segment(self) -> None:
+        if self.cxx is None:
+            self.n_closed, self.cxx, self.cxy = (
+                np.zeros_like(self.n) for _ in range(3)
+            )
+        xx, xy = self._centring()
+        self.cxx += xx
+        self.cxy += xy
+        self.n_closed += self.n
+        for a in (self.n, self.st, self.sy):
+            a.fill(0.0)
+        self.segments += 1
+
     def velocity_mm_yr(self, min_epochs: int = 5) -> np.ndarray:
-        """OLS slope in mm/yr; NaN with fewer than `min_epochs` valid epochs."""
-        den = self.n * self.st2 - self.st**2
-        good = (self.n >= min_epochs) & (den > 0)
+        """OLS slope in mm/yr, with one intercept per segment.
+
+        NaN with fewer than `min_epochs` valid epochs or no spread in time
+        within the segments.
+        """
+        xx, xy = self._centring()
+        n = self.n
+        if self.cxx is not None:
+            xx += self.cxx
+            xy += self.cxy
+            n = n + self.n_closed
+        den = self.st2 - xx
+        good = (n >= min_epochs) & (den > 1e-10)
         v = np.full(self.n.shape, np.nan)
-        v[good] = (self.n[good] * self.sty[good] - self.st[good] * self.sy[good]) / den[
-            good
-        ]
+        v[good] = (self.sty[good] - xy[good]) / den[good]
         return (v * 1000.0).astype(np.float32)
