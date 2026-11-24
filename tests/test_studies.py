@@ -782,3 +782,55 @@ def test_resplane_rate_map():
     good[:, 0, 0] = False
     r = ur.rate_map(cum, years, good)
     assert np.isnan(r[0, 0]) and np.allclose(r[1:, 1:], 5.0)
+
+
+def test_ts_o1_survival_matches_an_ideal_gaussian_smoother():
+    """A plain Gaussian smoother as the 'calibration': survival near the analytic value,
+    and a surface that ignores the data leaves the whole feature."""
+    from scipy.ndimage import gaussian_filter
+
+    m = _load("ts_o1")
+    shape, sk = (301, 301), 20.0  # kernel sigma in pixels (1 px = 1 km)
+    raw = np.zeros(shape, np.float32)
+    valid = np.ones(shape, bool)
+    feats = [{"center": (150, 150), "diameter_px": 20.0, "amplitude": 5.0}]
+    smooth = m.preservation_run(raw, valid, lambda v: gaussian_filter(v, sk), feats)[0]
+    assert smooth == pytest.approx(m.ideal_survival(20.0, sk), abs=0.03)
+    assert m.preservation_run(raw, valid, np.zeros_like, feats)[0] == pytest.approx(1.0)
+    # a surface that follows the data fully removes it: survival 0
+    assert m.preservation_run(raw, valid, lambda v: v, feats)[0] == pytest.approx(
+        0.0, abs=1e-6
+    )
+
+
+def test_ts_o1_feature_confined_to_a_piece():
+    m = _load("ts_o1")
+    piece = np.zeros((50, 50), bool)
+    piece[20:30, 20:30] = True
+    f = m.gaussian_feature((50, 50), (25, 25), 20.0, -3.0, within=piece)
+    assert f[~piece].max() == 0.0 and f[25, 25] == pytest.approx(-3.0)
+
+
+def test_ts_o1_flags_flip_inject_and_stress():
+    m = _load("ts_o1")
+    assert m.flags(-8.2, 7.1)["flip"] and not m.flags(-8.2, -0.3)["flip"]
+    assert m.flags(0.1, 1.9)["inject"] and not m.flags(0.1, 0.4)["inject"]
+    assert m.flags(90.0, 15.0)["stress"] and not m.flags(9.0, 1.0)["stress"]
+
+
+def test_ts_o1_segment_anomaly_and_clusters():
+    m = _load("ts_o1")
+    raw = np.zeros((60, 60), np.float32)
+    raw[25:35, 25:35] = -4.0  # a bowl
+    cal = raw + np.where(raw < 0, 4.0 + 2.0, 0.0)  # calibration overshoots: +2 left
+    seg = raw < 0
+    r, c, a = m.segment_anomalies(raw, cal, seg, m.ring_of(seg, 5))
+    assert (r, c, a) == pytest.approx((-4.0, 2.0, 6.0))
+    rows = [{"kind": "coh", "raw": r, "cal": c, "added": a, **m.flags(r, c)}]
+    s = m.summarize_overshoot(rows)["coh"]
+    assert s["flip"] == 1.0 and s["median_added_over_raw"] == pytest.approx(-1.5)
+    coh = np.full((60, 60), 0.3)
+    coh[5:10, 5:10] = 0.9  # 25 km2 at 1 km pixels
+    coh[40:41, 40:41] = 0.95  # 1 px = 1 km2: the smallest size kept
+    clusters = m.coherent_clusters(coh, np.ones_like(coh, bool), 1.0)
+    assert sorted(int(c.sum()) for c in clusters) == [1, 25]
