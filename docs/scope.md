@@ -18,7 +18,7 @@ release (Venti `docs/specs.md` §2.7 and §3.4; plan T11 and T21–T25).
 
 | Metric | Definition | Source |
 |---|---|---|
-| DD sill | double-difference semivariogram sill over station pairs ≥ 50 km, station-bootstrap 95 % CI | e2e_validation trade study |
+| DD sill | double-difference semivariogram sill over station pairs ≥ 50 km, outside deforming areas and event footprints (decision 0008), station-bootstrap 95 % CI | e2e_validation trade study |
 | Velocity vs MIDAS | RMSE, bias, correlation per station class: stable, subsiding, coastal, defo area, near event | §3.4 |
 | Golden epoch | one fixed pair checked against its golden product | §2.7 |
 | VLM | U vs GNSS Up, E vs GNSS East (after VLM v0.1) | §3.4 |

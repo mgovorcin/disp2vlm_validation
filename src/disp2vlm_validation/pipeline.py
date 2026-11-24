@@ -370,10 +370,13 @@ def run_validation(  # noqa: PLR0912, PLR0915
 
     gps_ser = gnss_los_series(daily, st, dates)
     coords = {s: (float(st.at[s, "lon"]), float(st.at[s, "lat"])) for s in st.index}
+    # decision 0008: the sill scores the stations the calibration fits
+    sill_excluded = set(gate_cfg.sill_excluded_classes)
+    sill_out = sorted(st.index[st["class"].isin(sill_excluded)])
     dd = double_differences(
-        series,
-        gps_ser,
-        coords,
+        {k: v.drop(columns=sill_out, errors="ignore") for k, v in series.items()},
+        gps_ser.drop(columns=sill_out, errors="ignore"),
+        {s: c for s, c in coords.items() if s not in sill_out},
         min_common_dates=cfg.min_common_dates,
         sill_min_km=cfg.sill_min_km,
         near_max_km=cfg.near_max_km,
@@ -443,6 +446,10 @@ def run_validation(  # noqa: PLR0912, PLR0915
         "velocity_by_class_raw": {
             "offset_removed_mm_yr": raw_offset,
             "classes": by_class_raw.reset_index().to_dict(orient="records"),
+        },
+        "double_difference_excluded": {
+            "classes": sorted(sill_excluded),
+            "stations": sill_out,
         },
         "double_difference": {
             name: {k: v for k, v in vars(s).items() if k != "draws"}

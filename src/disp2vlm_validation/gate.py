@@ -99,6 +99,12 @@ class GateConfig(BaseModel):
         default_factory=lambda: list(GATE.velocity_excluded_classes),
         description="Station classes left out of the velocity rules (decision 0002)",
     )
+    sill_excluded_classes: list[str] = Field(
+        default_factory=lambda: list(GATE.sill_excluded_classes),
+        description=(
+            "Station classes left out of the double-difference sill (decision 0008)"
+        ),
+    )
     velocity_min_overlap_years: float = Field(
         default=GATE.velocity_min_overlap_years,
         description=(
