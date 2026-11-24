@@ -1,6 +1,7 @@
 # 0006. F08882 reference on the kept stations, and a v0.5 waiver
 
-- **Status:** accepted (owner, 2026-10-30). Closes the question left open by
+- **Status:** accepted (owner, 2026-10-30); the subsiding condition itself no
+  longer gates since [decision 0009](0009-drop-f08882-subsiding-condition.md). Closes the question left open by
   [decision 0005](0005-velocity-stations-overlap-the-stack.md).
 - **Changes:** `configs/benchmark/gate_F08882.yaml`: subsiding reference
   4.23 → 0.94 mm/yr, defo_area reference 1.82 → 1.87 mm/yr. No gate number in

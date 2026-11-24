@@ -53,6 +53,7 @@ nav:
           - 0006 F08882 waiver: decisions/0006-f08882-subsiding-waiver.md
           - 0007 cal-disp 0.5.8 failures: decisions/0007-v058-benchmark-failures.md
           - 0008 Sill outside deforming areas: decisions/0008-sill-outside-deforming-areas.md
+          - 0009 Houston subsiding reported: decisions/0009-drop-f08882-subsiding-condition.md
       - Trade studies: record/studies.md
       - Baselines: baselines.md
       - v0.5 CalVal report: vnv/v0.5-calval-report.md
