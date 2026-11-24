@@ -192,12 +192,21 @@ def test_velocity_gate_leaves_out_deforming_areas(frame, tmp_path):
     page = (frame / "runs" / "gate_defo" / "report.html").read_text()
     assert "Stations the velocity rules use" in page and "1 left out" in page
 
+    # decision 0008: the same station is left out of the DD sill
+    assert m["double_difference_excluded"] == {
+        "classes": ["defo_area", "near_event"],
+        "stations": ["G000"],
+    }
+
     yaml_path = tmp_path / "gate.yaml"
-    yaml_path.write_text("velocity_excluded_classes: []\n")
+    yaml_path.write_text("velocity_excluded_classes: []\nsill_excluded_classes: []\n")
     m_all = run_validation(
         cfg.model_copy(update={"gate": yaml_path, "out_dir": tmp_path / "all"})
     )
     assert m_all["velocity_los_gate"]["n_excluded"] == 0
+    assert m_all["double_difference_excluded"]["stations"] == []
+    n_sill = m["double_difference"]["calibrated"]["n_stations"]
+    assert n_sill == m_all["double_difference"]["calibrated"]["n_stations"] - 1
 
 
 def test_velocity_leaves_out_stations_without_overlap(frame, tmp_path):

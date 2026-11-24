@@ -59,6 +59,12 @@ class GateThresholds:
         a station that ended before the stack or started after it says nothing
         about the stack. 0 restores every station. The DD sill is not affected
         (it uses common dates only).
+    sill_excluded_classes : tuple of str
+        Station classes left out of the double-difference sill (decision
+        0008), the same classes as the velocity rules by default: the
+        calibration does not fit the deforming areas (remove-restore), so
+        their stations' InSAR-minus-GNSS differences measure the restored
+        deformation, not the calibration. Empty restores the all-station sill.
 
     """
 
@@ -73,6 +79,7 @@ class GateThresholds:
     bootstrap_ci: float = 0.95
     velocity_excluded_classes: tuple[str, ...] = ("defo_area", "near_event")
     velocity_min_overlap_years: float = 3.0
+    sill_excluded_classes: tuple[str, ...] = ("defo_area", "near_event")
     independent_gnss_only: bool = field(default=True, init=False)
 
 
