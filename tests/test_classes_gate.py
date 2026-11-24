@@ -298,7 +298,9 @@ class TestGate:
 
         path = Path(__file__).parents[1] / "configs" / "benchmark" / "gate_F08882.yaml"
         g = load_gate(path)
-        assert all(t.gating for t in g.per_class_targets.values())
+        # decision 0009: defo_area gates, subsiding is reported only
+        assert g.per_class_targets["defo_area"].gating
+        assert not g.per_class_targets["subsiding"].gating
         assert all(t.rmse_must_drop_vs_raw for t in g.per_class_targets.values())
         assert all(t.max_rmse_mm_yr is None for t in g.per_class_targets.values())
         assert all(t.reference_rmse_mm_yr for t in g.per_class_targets.values())
